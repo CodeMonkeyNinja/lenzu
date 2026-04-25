@@ -1,0 +1,69 @@
+## Lenzu — transparent OCR lens overlay for Linux
+
+A draggable magnifier that captures whatever is under it, OCR's any Japanese text,
+and overlays the result (with optional furigana / LLM enrichment) as a click-through HUD.
+
+### Download
+
+Grab a single file from the **Assets** section below:
+
+- **`lenzu-bundle-X.Y.Z.tar`** — recommended. Contains the AppImage + both model
+  sidecars + an installer script + `run.sh` (~560 MB). One file, one untar, you're done.
+- Or download the four pieces separately if you only want the AppImage and not the
+  manga-ocr fallback path.
+
+### Quick start
+
+```bash
+# 1. Extract the bundle
+tar -xf lenzu-bundle-*.tar
+cd lenzu-bundle-*/
+
+# 2. Install the model sidecars to ~/.local/share/lenzu/
+LENZU_RELEASE_BASE=file://$(pwd) ./lenzu-appimage-installer.sh
+
+# 3. Run it
+./run.sh                       # full path: ollama / OpenRouter enrichment
+./run.sh --furigana_only       # offline path: DBNet + manga-ocr, no LLM
+```
+
+`run.sh` checks if `ollama` is reachable on `localhost:11434` (native install or
+Docker container), starts a `lenzu-ollama` Docker container if Docker is available
+but ollama isn't, and falls through to OpenRouter (set `OPENROUTER_API_KEY=sk-...`)
+if neither is available. To run without any LLM enrichment, use `--furigana_only`.
+
+### One system dependency
+
+The AppImage cannot bundle MeCab (libc-linked dictionary lookups), so install it
+via apt:
+
+```bash
+sudo apt install mecab mecab-ipadic-utf8
+```
+
+Without MeCab, furigana annotation will be skipped.
+
+### What's in the bundle
+
+| File | Purpose |
+|------|---------|
+| `lenzu-X.Y.Z-x86_64.appimage` | Rust client + Electron HUD, statically packaged |
+| `lenzu-models-dbnet-0.2.0.tar.xz` | AGPL-3.0 DBNet text-detection ONNX |
+| `lenzu-models-manga-ocr-0.1.0.tar.xz` | Apache-2.0 manga-ocr ONNX (~340 MB xz) |
+| `lenzu-appimage-installer.sh` | Untars the two model sidecars to `~/.local/share/lenzu/` |
+| `run.sh` | ollama / Docker preflight + launches the AppImage |
+| `README.txt` | Same quick-start, on-disk |
+
+### Licensing
+
+- **lenzu** itself is MIT.
+- **DBNet** model (`stabrise-text_detection_dbnet_ml_v02_model.onnx`) is **AGPL-3.0**
+  and shipped as a separate sidecar tarball — it is *not* bundled into the
+  MIT-licensed AppImage.
+- **manga-ocr** models (`mayocream/manga-ocr-onnx`) are Apache-2.0.
+- See `usr/share/doc/lenzu/NOTICES.md` inside the AppImage for the full
+  per-crate attribution.
+
+### Issues / source
+
+https://github.com/HidekiAI/lenzu
