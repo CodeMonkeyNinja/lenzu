@@ -34,7 +34,7 @@
 set -euo pipefail
 
 VERSION="${1:-latest}"
-RELEASE_BASE="${LENZU_RELEASE_BASE:-https://github.com/HidekiAI/lenzu/releases/download/$VERSION}"
+RELEASE_BASE="${LENZU_RELEASE_BASE:-https://github.com/CodeMonkeyNinja/lenzu/releases/download/$VERSION}"
 
 XDG_DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
 DBNET_VER="0.2.0"

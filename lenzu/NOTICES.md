@@ -124,4 +124,4 @@ StabRise and is *not* bundled with the MIT `lenzu` package.  See:
 ---
 
 For corrections or additions to this notice, please open an issue at
-https://github.com/hidekiai/lenzu
+https://github.com/CodeMonkeyNinja/lenzu

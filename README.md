@@ -1,6 +1,6 @@
 # <img src="assets/icon.png" alt="" width="96" align="left">&nbsp;lenzu 「レンズ」 (LINUX ONLY)
 
-**Install:** grab `lenzu-bundle-X.Y.Z.tar` from the [latest release](https://github.com/HidekiAI/lenzu/releases/latest) — quick-start (extract, model installer, `./run.sh`) is on the release page.
+**Install:** grab `lenzu-bundle-X.Y.Z.tar` from the [latest release](https://github.com/CodeMonkeyNinja/lenzu/releases/latest) — quick-start (extract, model installer, `./run.sh`) is on the release page.
 
 **Linux only** (X11, GTK3). No Windows or macOS support.
 
@@ -88,7 +88,7 @@ These companion crates were developed as part of this project and are available 
 - [`manga-ocr-rs`](https://crates.io/crates/manga-ocr-rs) — Japanese manga OCR via ViT encoder + BERT decoder (ONNX). Converts image crops to Japanese text.
 - [`mecab-furigana-rs`](https://crates.io/crates/mecab-furigana-rs) — MeCab-based furigana and romaji annotation. Dictionary-accurate readings at ~5 ms per call, with word segmentation and morpheme data.
 
-See [OCR Accuracy Scores](https://github.com/HidekiAI/lenzu/blob/trunk/docs/scores.md) for unified benchmark results across all engines and prototypes.
+See [OCR Accuracy Scores](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/docs/scores.md) for unified benchmark results across all engines and prototypes.
 
 ## Libraries & Dependencies
 

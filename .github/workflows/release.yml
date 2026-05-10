@@ -13,7 +13,7 @@ name: release
 #   lenzu-models-manga-ocr-0.1.0.tar.xz  -- Apache-2.0 manga-ocr sidecar
 #
 # scripts/lenzu-appimage-installer.sh hardcodes the URL pattern
-#   https://github.com/HidekiAI/lenzu/releases/download/<tag>/<asset>
+#   https://github.com/CodeMonkeyNinja/lenzu/releases/download/<tag>/<asset>
 # so end users running the installer just work once the tag is pushed.
 #
 # Storage policy: only the two most recent releases are retained.  Older
