@@ -122,3 +122,16 @@ See [`lenzu/README.md`](lenzu/README.md) for full configuration reference and co
 - GPU acceleration for jp_detect + manga-ocr-rs (CUDA EP) — would reduce per-crop latency from seconds to milliseconds
 - Wayland support via xdg-desktop-portal
 - Multi-monitor capture at non-zero offsets
+
+## History
+
+Lenzu was originally developed at
+[`HidekiAI/lenzu`](https://github.com/HidekiAI/lenzu), which has since been
+renamed to
+[`HidekiAI/lenzu-prototypes`](https://github.com/HidekiAI/lenzu-prototypes).
+The product code — Rust GTK lens, Electron HUD, packaging, release pipeline
+— was extracted here in May 2026 for canonical ownership alongside sibling
+crates like [`manga-ocr-rs`](https://github.com/CodeMonkeyNinja/manga-ocr-rs).
+The prototype crates that informed Lenzu's design (winit, gtk4, sarashina-onnx,
+dbnet-test, mecab, manga-ocr-test, and more) remain in the original repo as
+an archive.
