@@ -21,10 +21,10 @@ OUT_DIR="${1:-target/appimage}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-MODEL_SRC="$REPO_ROOT/assets/stabrise-text_detection_dbnet_ml_v02_model.onnx"
+MODEL_SRC="${LENZU_DBNET_ONNX:-$REPO_ROOT/assets/stabrise-text_detection_dbnet_ml_v02_model.onnx}"
 COPYRIGHT_SRC="$REPO_ROOT/packaging/lenzu-models-dbnet/copyright"
 
-[[ -f "$MODEL_SRC"     ]] || { echo "ERROR: $MODEL_SRC not found (LFS pulled?)" >&2; exit 3; }
+[[ -f "$MODEL_SRC"     ]] || { echo "ERROR: $MODEL_SRC not found. Set LENZU_DBNET_ONNX=/path/to/model.onnx to override." >&2; exit 3; }
 [[ -f "$COPYRIGHT_SRC" ]] || { echo "ERROR: $COPYRIGHT_SRC not found" >&2; exit 3; }
 
 VERSION="0.2.0"
