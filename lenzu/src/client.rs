@@ -229,7 +229,7 @@ impl OcrClient {
         let mut req = self
             .client
             .post(&self.endpoint)
-            .header("HTTP-Referer", "https://github.com/HidekiAI/lenzu");
+            .header("HTTP-Referer", "https://github.com/CodeMonkeyNinja/lenzu");
         if !self.api_key.is_empty() {
             req = req.header("Authorization", format!("Bearer {}", self.api_key));
         }
@@ -279,7 +279,7 @@ impl OcrClient {
         let mut req = self
             .client
             .post(&self.endpoint)
-            .header("HTTP-Referer", "https://github.com/HidekiAI/lenzu");
+            .header("HTTP-Referer", "https://github.com/CodeMonkeyNinja/lenzu");
         // ollama does not require (or accept) an Authorization header.
         // Only attach it when an api_key is present.
         if !self.api_key.is_empty() {

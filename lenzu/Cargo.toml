@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "Transparent OCR lens overlay for Linux desktop with Japanese-language support"
-homepage = "https://github.com/hidekiai/lenzu"
-repository = "https://github.com/hidekiai/lenzu"
+homepage = "https://github.com/CodeMonkeyNinja/lenzu"
+repository = "https://github.com/CodeMonkeyNinja/lenzu"
 authors = ["Hideki A. Ikeda"]
 
 [[bin]]

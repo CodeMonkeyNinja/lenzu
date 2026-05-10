@@ -293,7 +293,7 @@ fn show_about_dialog(parent: &gtk::Window) {
         (None, Some(crates)) => crates,
         (None, None) => "Third-party notices not found.  See:\n\
              /usr/share/doc/lenzu/NOTICES.md\n\
-             https://github.com/hidekiai/lenzu"
+             https://github.com/CodeMonkeyNinja/lenzu"
             .to_string(),
     };
 

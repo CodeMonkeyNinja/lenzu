@@ -66,4 +66,4 @@ Without MeCab, furigana annotation will be skipped.
 
 ### Issues / source
 
-https://github.com/HidekiAI/lenzu
+https://github.com/CodeMonkeyNinja/lenzu
