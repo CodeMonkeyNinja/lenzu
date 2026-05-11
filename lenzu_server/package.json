@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "A transparent HUD-like overlay for Linux desktop displaying UDP text as closed-caption/subtitle",
   "main": "dist/main.js",
+  "homepage": "https://github.com/CodeMonkeyNinja/lenzu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CodeMonkeyNinja/lenzu.git"
+  },
   "scripts": {
     "build": "node build.mjs",
     "start": "GTK_CSD=0 node_modules/.bin/electron dist/main.js",
@@ -19,7 +24,10 @@
     "captions",
     "linux"
   ],
-  "author": "Hideki A. Ikeda",
+  "author": {
+    "name": "Hideki A. Ikeda",
+    "email": "hidekiai@CodeMonkeyNinja.dev@users.noreply.github.com"
+  },
   "license": "MIT",
   "//": "Electron 41.3.0 confirmed working for transparent:true on Linux X11 (re-tested 2026-04-25 against integrated client and standalone HUD demo). The 36-41 transparency regression that previously held us on 35.x has been resolved upstream.",
   "pnpm": {
@@ -38,7 +46,7 @@
     "vitest": "^3.0.0"
   },
   "build": {
-    "appId": "com.exactasystems.lenzu.hud",
+    "appId": "io.github.codemonkeyninja.lenzu.hud",
     "productName": "lenzu-hud",
     "executableName": "lenzu-hud",
     "files": [
@@ -59,7 +67,8 @@
     "linux": {
       "target": ["deb", "AppImage"],
       "category": "Utility",
-      "synopsis": "Transparent desktop HUD for Lenzu OCR overlay"
+      "synopsis": "Transparent desktop HUD for Lenzu OCR overlay",
+      "maintainer": "Hideki A. Ikeda <hidekiai@CodeMonkeyNinja.dev@users.noreply.github.com>"
     },
     "deb": {
       "depends": [

@@ -18,8 +18,8 @@ path = "src/bin/ocr_test.rs"
 
 [package.metadata.deb]
 name = "lenzu"
-maintainer = "Hideki A. Ikeda <hideki.ikeda@exactasystems.com>"
-copyright = "2023, Hideki A. Ikeda <hideki.ikeda@exactasystems.com>"
+maintainer = "Hideki A. Ikeda <hidekiai@CodeMonkeyNinja.dev@users.noreply.github.com>"
+copyright = "2023, Hideki A. Ikeda <hidekiai@CodeMonkeyNinja.dev@users.noreply.github.com>"
 license-file = ["../LICENSE", "0"]
 extended-description = """\
 Lenzu is a transparent, screen-region OCR lens for Linux desktop.

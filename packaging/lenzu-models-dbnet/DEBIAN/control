@@ -4,7 +4,7 @@ Section: utils
 Priority: optional
 Architecture: all
 Depends: lenzu
-Maintainer: Hideki A. Ikeda <hideki.ikeda@exactasystems.com>
+Maintainer: Hideki A. Ikeda <hidekiai@CodeMonkeyNinja.dev@users.noreply.github.com>
 Homepage: https://huggingface.co/StabRise/text_detection_dbnet_ml_v0.2
 Description: DBNet text-detection ONNX model for Lenzu (AGPL-3.0)
  Pre-trained DBNet text-detection model from
