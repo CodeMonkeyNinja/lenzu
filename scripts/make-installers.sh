@@ -152,8 +152,10 @@ Quick start:
       ./$(basename "$appimage_file")
       ./$(basename "$appimage_file") --furigana_only
 
-System dependency:
-  sudo apt install mecab mecab-ipadic-utf8
+System dependencies:
+  sudo apt install libfuse2t64 mecab mecab-ipadic-utf8
+  (on older Debian/Ubuntu pre-2024, use libfuse2 instead of libfuse2t64;
+   libfuse2t64 is required to run any AppImage, mecab for furigana)
 
 Contents:
   $(basename "$appimage_file")              -- main binary (Rust + Electron HUD)

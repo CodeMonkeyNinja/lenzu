@@ -91,6 +91,22 @@ jobs:
         working-directory: lenzu_server
         run: pnpm install --frozen-lockfile
 
+      # The AGPL DBNet model is intentionally NOT in this repo's history
+      # (license isolation — keeps CodeMonkeyNinja/lenzu pure MIT).  Fetch
+      # it from the HidekiAI/lenzu-prototypes archive's release at build
+      # time and feed it to make-installers.sh via LENZU_DBNET_ONNX.
+      - name: Fetch DBNet model (AGPL-3.0, license-isolated)
+        run: |
+          mkdir -p /tmp/dbnet
+          curl -fsSL -o /tmp/dbnet/dbnet.tar.xz \
+            https://github.com/HidekiAI/lenzu-prototypes/releases/download/v0.1.0/lenzu-models-dbnet-0.2.0.tar.xz
+          tar -xJf /tmp/dbnet/dbnet.tar.xz -C /tmp/dbnet
+          # Layout inside the sidecar tarball:
+          #   .local/share/lenzu/models/stabrise-text_detection_dbnet_ml_v02_model.onnx
+          DBNET_PATH=/tmp/dbnet/.local/share/lenzu/models/stabrise-text_detection_dbnet_ml_v02_model.onnx
+          [[ -f "$DBNET_PATH" ]] || { echo "DBNet model not found after extraction"; exit 1; }
+          echo "LENZU_DBNET_ONNX=$DBNET_PATH" >> $GITHUB_ENV
+
       - name: Build bundle
         run: scripts/make-installers.sh --ci
 
