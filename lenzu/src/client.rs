@@ -581,8 +581,9 @@ pub struct DualOcrClient {
     /// Free-tier remote (openrouter/free) — always configured; no API key required.
     /// Tried before the paid remote fallback.
     free_remote_fallback: OcrClient,
-    /// Paid remote fallback (e.g. Gemini via OpenRouter) — only configured when API key is set.
-    remote_fallback: Option<OcrClient>,
+    /// Ordered paid remote fallback chain (e.g. @preset/free-dev → google/gemma-4-31b-it:free).
+    /// Only populated when API key is set; empty otherwise.
+    remote_fallbacks: Vec<OcrClient>,
     fallback_max_dimension: u32,
     /// Longest-edge pixel cap for primary/local calls. 0 = no limit.
     primary_max_dimension: u32,
@@ -603,6 +604,7 @@ impl DualOcrClient {
         free_remote_model: String,
         fallback_endpoint: String,
         fallback_model: String,
+        extra_fallback_models: Vec<String>,
         fallback_api_key: String,
         fallback_max_dimension: u32,
         primary_max_dimension: u32,
@@ -630,15 +632,18 @@ impl DualOcrClient {
             fallback_api_key.clone(), free_remote_endpoint, free_remote_model, prompt.clone(),
             Some(free_remote_timeout_secs), None, true,
         );
-        let remote_fallback = if !fallback_api_key.is_empty() {
-            Some(OcrClient::new_with_options(
-                fallback_api_key, fallback_endpoint, fallback_model, prompt,
-                Some(paid_remote_timeout_secs), None, true,
-            ))
+        let remote_fallbacks: Vec<OcrClient> = if !fallback_api_key.is_empty() {
+            std::iter::once(fallback_model)
+                .chain(extra_fallback_models.into_iter())
+                .map(|model| OcrClient::new_with_options(
+                    fallback_api_key.clone(), fallback_endpoint.clone(), model, prompt.clone(),
+                    Some(paid_remote_timeout_secs), None, true,
+                ))
+                .collect()
         } else {
-            None
+            Vec::new()
         };
-        Self { primary, local_fallbacks, free_remote_fallback, remote_fallback, fallback_max_dimension, primary_max_dimension }
+        Self { primary, local_fallbacks, free_remote_fallback, remote_fallbacks, fallback_max_dimension, primary_max_dimension }
     }
 
     /// Returns `true` when results are empty or every `english` field is absent/blank.
@@ -730,24 +735,31 @@ impl DualOcrClient {
             if ok {
                 return result.map(|r| (r, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
             }
-            // Fall through to paid remote if free remote failed or returned nothing useful.
-            let fallback_b64_paid = encode_for_fallback(image, self.fallback_max_dimension);
-            match &self.remote_fallback {
-                Some(fb) => {
-                    eprintln!("[OCR] free remote gave nothing — trying paid remote");
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(API_DEBUG_PATH) {
-                        let _ = std::io::Write::write_fmt(&mut f, format_args!("[paid-remote-fallback]\n"));
-                    }
-                    let meta_label = fb.label();
-                    fb.call_api(&fallback_b64_paid).await.map(|r| {
-                        (r, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false })
-                    })
-                }
-                None => {
-                    eprintln!("[OCR] paid remote not configured (OPENROUTER_API_KEY not set) — returning free remote result");
-                    result.map(|r| (r, OcrMeta { backend: self.free_remote_fallback.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false }))
-                }
+            // Fall through to paid remote chain if free remote failed or returned nothing useful.
+            if self.remote_fallbacks.is_empty() {
+                eprintln!("[OCR] paid remote not configured (OPENROUTER_API_KEY not set) — returning free remote result");
+                return result.map(|r| (r, OcrMeta { backend: self.free_remote_fallback.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false }));
             }
+            let fallback_b64_paid = encode_for_fallback(image, self.fallback_max_dimension);
+            let mut last_paid: Result<(Vec<TranslationResult>, OcrMeta), Box<dyn std::error::Error + Send + Sync>> =
+                Err("no remote fallbacks attempted".into());
+            for (i, fb) in self.remote_fallbacks.iter().enumerate() {
+                eprintln!("[OCR] trying remote fallback #{} ({})", i + 1, fb.label());
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(API_DEBUG_PATH) {
+                    let _ = std::io::Write::write_fmt(&mut f, format_args!("[remote-fallback-{}]\n", i + 1));
+                }
+                let meta_label = fb.label();
+                let r = fb.call_api(&fallback_b64_paid).await;
+                match &r {
+                    Ok(v) if !Self::needs_fallback(v) => {
+                        return r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+                    }
+                    Ok(_) => eprintln!("[OCR] remote fallback #{} returned nothing useful", i + 1),
+                    Err(e) => eprintln!("[OCR] remote fallback #{} failed ({e})", i + 1),
+                }
+                last_paid = r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+            }
+            last_paid
         }
     }
 
@@ -769,20 +781,27 @@ impl DualOcrClient {
             return result.map(|r| (r, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
         }
 
-        // Try paid remote
-        match &self.remote_fallback {
-            Some(fb) => {
-                let meta_label = fb.label();
-                fb.call_api(&b64).await.map(|r| {
-                    (r, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false })
-                })
-            }
-            None => {
-                // Return whatever the free remote gave us (even if empty), or its error
-                result.map(|r| (r, OcrMeta { backend: self.free_remote_fallback.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false }))
-                    .map_err(|_| "Remote override unavailable: OPENROUTER_API_KEY not set and free remote failed".into())
-            }
+        // Walk the paid remote chain
+        if self.remote_fallbacks.is_empty() {
+            return result
+                .map(|r| (r, OcrMeta { backend: self.free_remote_fallback.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false }))
+                .map_err(|_| "Remote override unavailable: OPENROUTER_API_KEY not set and free remote failed".into());
         }
+        let mut last_paid: Result<(Vec<TranslationResult>, OcrMeta), Box<dyn std::error::Error + Send + Sync>> =
+            Err("no remote fallbacks attempted".into());
+        for (i, fb) in self.remote_fallbacks.iter().enumerate() {
+            let meta_label = fb.label();
+            let r = fb.call_api(&b64).await;
+            match &r {
+                Ok(v) if !Self::needs_fallback(v) => {
+                    return r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+                }
+                Ok(_) => eprintln!("[OCR] force-fallback remote #{} returned nothing useful", i + 1),
+                Err(e) => eprintln!("[OCR] force-fallback remote #{} failed ({e})", i + 1),
+            }
+            last_paid = r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+        }
+        last_paid
     }
 }
 
@@ -1173,7 +1192,8 @@ mod tests {
             "https://openrouter.ai/api/v1/chat/completions".into(), // free_remote_endpoint
             "openrouter/free".into(),                               // free_remote_model
             "https://openrouter.ai/api/v1/chat/completions".into(),
-            "google/gemini-2.0-flash-001".into(),
+            "@preset/free-dev".into(),
+            vec!["google/gemma-4-31b-it:free".to_string()],
             api_key.to_string(),
             800,  // fallback_max_dimension
             0,    // primary_max_dimension (no limit)
@@ -1187,12 +1207,13 @@ mod tests {
 
     #[test]
     fn test_dual_client_no_fallback_when_api_key_empty() {
-        assert!(dual("").remote_fallback.is_none(), "empty api_key must not create a remote fallback client");
+        assert!(dual("").remote_fallbacks.is_empty(), "empty api_key must not create any remote fallback clients");
     }
 
     #[test]
     fn test_dual_client_fallback_created_when_key_present() {
-        assert!(dual("sk-real-key").remote_fallback.is_some(), "non-empty api_key must create a remote fallback client");
+        // First slot = fallback_model (@preset/free-dev), plus one extra (gemma:free) → 2 total
+        assert_eq!(dual("sk-real-key").remote_fallbacks.len(), 2, "non-empty api_key must create primary + extra remote fallback clients");
     }
 
     #[tokio::test]
