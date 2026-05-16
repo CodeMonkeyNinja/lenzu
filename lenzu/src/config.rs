@@ -108,6 +108,12 @@ pub struct AppConfig {
     pub fallback_llm_api_endpoint: String,
     #[serde(default = "default_fallback_model")]
     pub fallback_llm_model: String,
+    /// Additional remote fallback models tried in order after `fallback_llm_model`.
+    /// Each uses the same `fallback_llm_api_endpoint` and `OPENROUTER_API_KEY`.
+    /// Activated only when the API key is set (same gate as the primary paid slot).
+    /// Empty = no tertiary/quaternary remote fallbacks.
+    #[serde(default = "default_extra_fallback_models")]
+    pub extra_fallback_models: Vec<String>,
     /// Longest-edge pixel limit applied to images before the fallback call. 0 = no limit.
     #[serde(default = "default_fallback_max_dimension")]
     pub fallback_max_dimension: u32,
@@ -252,7 +258,10 @@ fn default_fallback_endpoint() -> String {
     "https://openrouter.ai/api/v1/chat/completions".to_string()
 }
 fn default_fallback_model() -> String {
-    "google/gemini-2.0-flash-001".to_string()
+    "@preset/free-dev".to_string()
+}
+fn default_extra_fallback_models() -> Vec<String> {
+    vec!["google/gemma-4-31b-it:free".to_string()]
 }
 fn default_fallback_max_dimension() -> u32 {
     800
@@ -354,6 +363,7 @@ impl Default for AppConfig {
             // or when Ctrl+Shift+Click forces remote.
             fallback_llm_api_endpoint: default_fallback_endpoint(),
             fallback_llm_model: default_fallback_model(),
+            extra_fallback_models: default_extra_fallback_models(),
             fallback_max_dimension: default_fallback_max_dimension(),
             primary_max_dimension: 0,
             local_timeout_secs: default_local_timeout_secs(),
@@ -479,7 +489,8 @@ mod tests {
         }"##;
         let cfg: AppConfig = serde_json::from_str(json).expect("old config must deserialize");
         assert_eq!(cfg.fallback_llm_api_endpoint, "https://openrouter.ai/api/v1/chat/completions");
-        assert_eq!(cfg.fallback_llm_model, "google/gemini-2.0-flash-001");
+        assert_eq!(cfg.fallback_llm_model, "@preset/free-dev");
+        assert_eq!(cfg.extra_fallback_models, vec!["google/gemma-4-31b-it:free".to_string()]);
         assert_eq!(cfg.fallback_max_dimension, 800);
         assert_eq!(cfg.primary_max_dimension, 0, "old configs without primary_max_dimension must default to 0 (no limit)");
         assert!(!cfg.detection_scale_table.is_empty(), "old configs must get a non-empty default scale table");
