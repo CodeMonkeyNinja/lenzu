@@ -339,9 +339,11 @@ fn show_about_dialog(parent: &gtk::Window) {
 /// re-opening Help is one Shift+H away.  Linear flow avoids GTK's nested-
 /// event-loop hazards from re-running the same dialog within a loop.
 fn show_help_dialog(parent: &gtk::Window) {
-    let help = "\
-ショートカット一覧
+    let help = format!("\
+Lenzu v{}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
+ショートカット一覧
+
 Shift＋クリック
   → レンズ内のテキストをOCR・翻訳
 
@@ -360,7 +362,7 @@ ESC
   → 実行中のOCRをキャンセル
 
 Shift＋ESC
-  → 終了";
+  → 終了", env!("CARGO_PKG_VERSION"));
 
     let about_response = gtk::ResponseType::Other(1);
     let dialog = gtk::MessageDialog::new(
@@ -368,7 +370,7 @@ Shift＋ESC
         gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT,
         gtk::MessageType::Info,
         gtk::ButtonsType::None,
-        help,
+        &help,
     );
     dialog.set_title("Lenzu ヘルプ");
     dialog.add_button("About", about_response);
@@ -386,6 +388,7 @@ Shift＋ESC
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    eprintln!("[Lenzu] v{}", env!("CARGO_PKG_VERSION"));
     // Ensure /dev/shm/lenzu/ exists for all runtime output files.
     let _ = std::fs::create_dir_all("/dev/shm/lenzu");
 
