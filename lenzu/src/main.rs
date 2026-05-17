@@ -388,6 +388,10 @@ Shift＋ESC
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::args().any(|a| a == "--version" || a == "-V") {
+        println!("lenzu {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     eprintln!("[Lenzu] v{}", env!("CARGO_PKG_VERSION"));
     // Ensure /dev/shm/lenzu/ exists for all runtime output files.
     let _ = std::fs::create_dir_all("/dev/shm/lenzu");
@@ -1246,7 +1250,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 // on screen instead of flashing.
                                                 let tx_progress = tx_clone.clone();
                                                 let furigana_only_flag = s_conf.furigana_only;
-                                                let (local_result, _partials) = tokio::task::block_in_place(|| {
+                                                let (local_result, partials) = tokio::task::block_in_place(|| {
                                                     let engine = ocr::local_ocr::LocalOcrEngine::from_arc(
                                                         std::sync::Arc::clone(mocr),
                                                     );
@@ -1285,7 +1289,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     },
                                                 )
                                                 });
-                                                if let Some(results) = local_result {
+                                                // --furigana_only ⇒ never call the LLM, even when local OCR confidence
+                                                // is below gate.  Accept the partials and let MeCab annotate whatever
+                                                // text we got; the user explicitly opted out of LLM enrichment.
+                                                let accepted = local_result.or_else(|| {
+                                                    if s_conf.furigana_only && !partials.is_empty() {
+                                                        eprintln!(
+                                                            "[OCR] --furigana_only: accepting {} low-confidence local result(s) (skipping LLM chain)",
+                                                            partials.len(),
+                                                        );
+                                                        Some(partials)
+                                                    } else {
+                                                        None
+                                                    }
+                                                });
+                                                if let Some(results) = accepted {
                                                     let mut t_results: Vec<client::TranslationResult> = results.iter().map(|r| {
                                                         client::TranslationResult {
                                                             original: r.text.clone(),
