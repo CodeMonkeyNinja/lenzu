@@ -29,9 +29,21 @@ pub fn annotate(results: &mut [TranslationResult], furigana_only: bool) -> bool 
         };
 
         if let Some(fr) = annotated {
+            // Dictionary-gap detection: when the input contains kanji but the
+            // annotated string has zero `[...]` brackets, MeCab found no readings
+            // for any kanji token (e.g. slang/compound not in IPADIC baseline).
+            // Surface this so silent no-op annotations aren't mistaken for "working".
+            let has_kanji = text.chars().any(is_kanji);
+            let has_readings = fr.furigana.contains('[');
+            if has_kanji && !has_readings {
+                eprintln!(
+                    "[furigana] mecab — no readings emitted for «{}» (dictionary gap? IPADIC may not cover this token)",
+                    truncate_display(text, 60),
+                );
+            }
             eprintln!(
                 "[furigana] mecab — furigana={} romaji={} furigana_only={}",
-                !fr.furigana.is_empty(),
+                has_readings,
                 !fr.romaji.is_empty(),
                 furigana_only,
             );
@@ -106,6 +118,12 @@ pub fn compare_and_maybe_overwrite(results: &mut [TranslationResult], overwrite:
     any
 }
 
+/// CJK Unified Ideographs (kanji used in Japanese, Chinese, Korean).
+/// Covers Basic block (U+4E00..U+9FFF) and Extension A (U+3400..U+4DBF).
+fn is_kanji(c: char) -> bool {
+    matches!(c as u32, 0x4E00..=0x9FFF | 0x3400..=0x4DBF)
+}
+
 fn truncate_display(s: &str, max_chars: usize) -> String {
     if s.chars().count() <= max_chars {
         s.to_string()
@@ -139,6 +157,28 @@ mod tests {
         if super::annotate(&mut results, true) {
             assert!(results[0].furigana.is_some(), "furigana should be set");
             assert!(results[0].romaji.is_none(), "romaji should be None in furigana_only mode");
+        }
+    }
+
+    #[test]
+    fn test_annotate_emits_brackets_when_kanji_present() {
+        // Regression guard: when the input contains kanji that IPADIC knows,
+        // annotate() must emit at least one `[...]` reading.  A bare verbatim
+        // copy of the input means the underlying crate silently failed to look
+        // up readings — catches the class of silent no-op annotation we hit
+        // when MeCab returns morphemes with empty reading fields.
+        let mut results = vec![TranslationResult {
+            original: "食べる".to_string(),
+            ..Default::default()
+        }];
+        if super::annotate(&mut results, false) {
+            let f = results[0].furigana.as_deref().unwrap_or("");
+            assert!(
+                f.contains('['),
+                "expected bracketed reading for kanji input, got «{}» — \
+                 mecab-furigana-rs returned a verbatim string with no annotations",
+                f,
+            );
         }
     }
 
