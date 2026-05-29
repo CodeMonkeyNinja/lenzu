@@ -117,11 +117,46 @@ export OPENROUTER_API_KEY=sk-your-key-here
 
 See [`lenzu/README.md`](lenzu/README.md) for full configuration reference and controls.
 
+## Why X11 (and not Wayland)?
+
+Short answer: Wayland's security model deliberately forbids the three things
+Lenzu's lens depends on. It's not an oversight or laziness — a sandboxed Wayland
+client simply isn't allowed to do them:
+
+1. **Track the global cursor.** Lenzu polls the pointer position ~60×/sec so the
+   lens follows your mouse anywhere on screen. A Wayland client can only see the
+   cursor while it's *over its own window* — it can't know where your mouse is on
+   someone else's window or the desktop.
+2. **Place its own window under the cursor.** Lenzu moves the lens to absolute
+   screen coordinates to sit over whatever you're pointing at. Wayland clients
+   can't position their own toplevel windows at arbitrary screen coordinates at
+   all (positioning is the compositor's job).
+3. **Capture the region silently.** Lenzu grabs the pixels under the cursor
+   directly. On Wayland that requires going through xdg-desktop-portal
+   (ScreenCast/Screenshot) with a permission prompt — there's no silent,
+   on-demand, cursor-following grab.
+
+A Wayland port is therefore not a drop-in: it would mean a redesigned
+interaction model (e.g. a global-shortcut-triggered, portal-mediated full-screen
+scan) rather than the current "lens follows your cursor, shift-click anywhere"
+flow. See the TODO note below.
+
+For now Lenzu runs great under **XWayland** on a Wayland session — but note that
+XWayland can only capture other XWayland (X11) windows, not native Wayland
+windows, so OCR of Wayland-native apps won't work that way.
+
 ## TODO
 
 - GPU acceleration for jp_detect + manga-ocr-rs (CUDA EP) — would reduce per-crop latency from seconds to milliseconds
-- Wayland support via xdg-desktop-portal
+- Native Wayland support via xdg-desktop-portal — blocked on a UX redesign, not just a capture backend (see ["Why X11 (and not Wayland)?"](#why-x11-and-not-wayland) above)
 - Multi-monitor capture at non-zero offsets
+
+### Wish-list
+
+- Text-to-speech (TTS) for recognized text — read the detected Japanese (and
+  optionally the translation) aloud. We already load and run ONNX models for
+  detection and OCR, so an ONNX-based TTS model would fit naturally into the
+  existing inference path with no new runtime dependency.
 
 ## History
 
