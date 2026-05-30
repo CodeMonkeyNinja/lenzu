@@ -1,5 +1,13 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.5
+
+- **Single-instance guard** — a second `lenzu` launch detects the running instance via PID file and exits cleanly instead of spawning a duplicate lens + HUD.
+- **HUD orphan fix** — the Electron HUD now exits automatically whenever lenzu dies (clean exit, crash, or external kill) via `prctl(PR_SET_PDEATHSIG)`.
+- **`onnx` feature on by default** — plain `cargo build` no longer silently produces a crippled binary with text detection disabled. Use `--no-default-features` to opt out.
+- **Dependency security bumps** — `manga-ocr-rs` 0.1.3 → 0.1.4, `jp_detect` 0.2.3 → 0.2.4.
+- **Docs** — expanded architecture rationale: why Electron for the HUD (WebKit2GTK ghost-text bug, Lottie/animation plans), Wayland TODO with performance analysis, deleted orphaned capture stubs.
+
 A draggable magnifier that captures whatever is under it, OCR's any Japanese text,
 and overlays the result (with optional furigana / LLM enrichment) as a click-through HUD.
 

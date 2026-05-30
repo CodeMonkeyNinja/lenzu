@@ -1,6 +1,6 @@
 [package]
 name = "lenzu"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 license = "MIT"
 description = "Transparent OCR lens overlay for Linux desktop with Japanese-language support"
