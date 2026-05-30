@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.8
+
+- **HUD font size fix** — restored 24pt font (was shrunk to 13pt by the same Gemini schema rename that caused the cyan/opacity regression in v0.1.7).
+
 ### What's new in v0.1.7
 
 - **HUD color/opacity regression fix** — yellow text (`#f5e642`) and semi-transparent background (`0.45`) restored. A prior schema-alignment commit renamed `hud_config.json` keys from camelCase to snake_case, accidentally activating a dormant cyan `#00FFCC` and opaque `0.85` that had always been in the file but were silently ignored because the camelCase keys didn't match the TypeScript interface.
