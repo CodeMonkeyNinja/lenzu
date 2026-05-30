@@ -191,28 +191,9 @@ For now Lenzu runs great under **XWayland** on a Wayland session — but note th
 XWayland can only capture other XWayland (X11) windows, not native Wayland
 windows, so OCR of Wayland-native apps won't work that way.
 
-## TODO
+## Roadmap
 
-- GPU acceleration for jp_detect + manga-ocr-rs (CUDA EP) — would reduce per-crop latency from seconds to milliseconds
-- Native Wayland support via xdg-desktop-portal — blocked on a UX redesign, not just a capture backend (see ["Why X11 (and not Wayland)?"](#why-x11-and-not-wayland) above).
-  Design decisions so far:
-  - Backend detection at startup: probe `WAYLAND_DISPLAY` and `XDG_SESSION_TYPE`; route to `DisplayBackend::X11` or `::Wayland`.
-  - X11 path: already done — `capture::capture_x11()` uses `x11rb` + `XGetImage` (see `lenzu/src/capture.rs`).
-  - Wayland path (Screenshot portal): `ashpd::desktop::screenshot::Screenshot` with `interactive(false)` — one-shot PNG of the full desktop, crop `W×H` centered on cursor anchor. Sequence: hide Lenzu window → async portal call → read PNG → decode → crop → show window.
-    **Performance warning:** this path is structurally ~20–80× slower than X11 `XGetImage`. X11 lens capture (~400×400) is 5–15 ms (raw BGRA over Unix socket, no encoding). The portal always captures the full screen, compositor PNG-encodes it to tmpfs (~50–200 ms at 1080p), then Rust PNG-decodes it again (~50–200 ms). Total: **150–450 ms per trigger** — a noticeable pause. The only Wayland path that approaches X11 speed is the ScreenCast portal + PipeWire (raw shared-memory frame, no PNG), but that requires `libpipewire`, session negotiation, and stream setup — significantly heavier infrastructure.
-  - **Open problem — global cursor position:** No standard XDG portal exposes the pointer's absolute screen coordinates. Under XWayland GDK's `root_win.device_position()` works; on native Wayland GTK3 it returns surface-relative coordinates (effectively useless for screen-space anchoring). This is the core UX redesign item: the interaction model must be rethought (e.g., a global-shortcut-triggered capture that anchors to the _last known_ cursor position from GDK events, rather than the live polling loop used today).
-  - **HUD window (Electron) — mostly fine:** `screen.getCursorScreenPoint()` and `setPosition()` in Electron work under both XWayland and native-Wayland Electron (Chromium Ozone). The `override_redirect` helper is X11-only but already fails gracefully (`try/catch` in `main.ts`); `alwaysOnTop: true` is the Wayland fallback. Transparent window works on GNOME/KDE compositors. The `enable-transparent-visuals` Chromium switch is X11-specific but harmless on Wayland.
-  - **HUD auto-reposition — broken on native Wayland:** The top/bottom decision (`frac > 0.70 → "top"`, `frac < 0.30 → "bottom"`) runs in Rust and is sent to Electron via UDP. Electron just obeys the command; it has no cursor-tracking of its own for this. If Rust's `root_win.device_position()` returns garbage (native Wayland), the HUD stays stuck at its initial position. Fix is the same as the cursor-position problem above — needs a Wayland-aware event source.
-  - **API note:** `ashpd` has had several breaking changes; verify against the installed 0.8.x API before writing real code. The `Screenshot::request().interactive(false)` builder from older docs is stale.
-  - **Starting point:** `lenzu/src/capture.rs` contains the working X11 implementation (`capture_x11`, `screen_size`). Add Wayland-specific functions here (or a `capture_wayland.rs` sibling re-exported from `capture.rs`) rather than recreating a `capture/` subdirectory with a trait hierarchy — the current flat layout is intentional.
-- Multi-monitor capture at non-zero offsets
-
-### Wish-list
-
-- Text-to-speech (TTS) for recognized text — read the detected Japanese (and
-  optionally the translation) aloud. We already load and run ONNX models for
-  detection and OCR, so an ONNX-based TTS model would fit naturally into the
-  existing inference path with no new runtime dependency.
+Tracked in [GitHub Issues](https://github.com/CodeMonkeyNinja/lenzu/issues).
 
 ## History
 
