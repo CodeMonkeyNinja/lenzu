@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.9
+
+- **HUD background opacity fix** — restored 0.72 opacity (was incorrectly set to 0.45 in v0.1.7 fix; correct DEFAULT_CONFIG value is 0.72). All three Gemini schema regressions now resolved: yellow text, 24pt font, semi-transparent background.
+
 ### What's new in v0.1.8
 
 - **HUD font size fix** — restored 24pt font (was shrunk to 13pt by the same Gemini schema rename that caused the cyan/opacity regression in v0.1.7).
