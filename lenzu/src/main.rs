@@ -198,6 +198,16 @@ fn spawn_server(port: u16) -> Option<std::process::Child> {
         std::process::Command::new("lenzu-hud")
     };
 
+    // When the parent (lenzu) dies for any reason — clean exit, crash, or
+    // SIGKILL — the kernel delivers SIGTERM to the HUD child so Electron
+    // doesn't linger as an orphan.
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM as libc::c_int);
+            Ok(())
+        });
+    }
+
     cmd.env("LENZU_OVERLAY_UDP_PORT", port.to_string())
         .env("GTK_CSD", "0")
         .process_group(0)
