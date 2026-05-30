@@ -117,6 +117,52 @@ export OPENROUTER_API_KEY=sk-your-key-here
 
 See [`lenzu/README.md`](lenzu/README.md) for full configuration reference and controls.
 
+## Why Electron for the HUD (and not GTK)?
+
+Short answer: WebKit2GTK has an unfixable alpha-compositing bug on X11, raw GTK + Cairo lacks an animation ecosystem, and Electron is the only option that cleanly handles all current and planned HUD features.
+
+### What was tried (see `HidekiAI/lenzu-prototypes` archive)
+
+- **Tauri + WebKit2GTK** — abandoned. WebKit's dirty-rect compositor treats `transparent → transparent` as a no-op and skips writing vacated alpha pixels back to the X11 surface. When shorter text replaces longer text the old characters stay on screen until an `Alt+Tab` forces a repaint. Three separate mitigations (near-zero background, body-background tick-toggle, synthetic X11 Expose event) all failed under different timing conditions. Root cause is architectural in WebKit's software renderer — not fixable from application code.
+- **GTK3 + Cairo** — doesn't have the dirty-rect bug (the Lenzu lens window is itself a transparent GTK3 + Cairo window and works fine), but see the capability comparison below for why it falls short for the HUD.
+
+### Why GTK + Cairo can't match Electron here
+
+**Transparent borderless window** — both can do it. That's where the parity ends.
+
+**Animated avatar (planned — Clippy-style character).** GTK + Cairo means writing an animation runtime from scratch: load a sprite sheet or PNG sequence, drive frame advances with `glib::timeout_add`, implement every state transition (idle → react → annoyed) by hand in a custom draw callback. No interpolation, no rigging, no off-the-shelf character format.
+
+Electron has the full web animation stack: CSS keyframes, `requestAnimationFrame` canvas sprites, GIF/WebP playback, **Lottie** (Adobe After Effects exported to JSON — the standard format for Clippy-grade rigged character animations), Spine 2D / DragonBones web runtimes for bone animation, WebGL for anything 3D. Reaction states wire up in a few lines of JS.
+
+**Click-through with selective interception.** GTK uses `input_shape_combine_region` to define an X11 input region — static, synchronous, has to be manually recalculated and re-applied every frame when the avatar changes shape.
+
+Electron has `setIgnoreMouseEvents(true, { forward: true })` which passes all clicks through to whatever is underneath, and you toggle it dynamically from a `mousemove` listener:
+
+```ts
+// clicks pass through by default; avatar captures them when hovered
+win.setIgnoreMouseEvents(true, { forward: true });
+avatar.addEventListener('mouseenter', () => win.setIgnoreMouseEvents(false));
+avatar.addEventListener('mouseleave', () => win.setIgnoreMouseEvents(true, { forward: true }));
+```
+
+That is the entire selective click-interception logic. If the avatar gets bombarded with clicks, a JS counter and a CSS class change express the "annoyed" state — no X11 region recalculation per frame.
+
+**Dynamic font, color, and size changes.** Both can do it. GTK requires a Pango markup rebuild and a `queue_draw()`. Electron is one CSS variable assignment.
+
+### Verdict
+
+| Feature | GTK + Cairo | Electron |
+|---|---|---|
+| Transparent borderless window | ✓ | ✓ |
+| ARGB compositing (no ghost text) | ✓ | ✓ |
+| Click-through + selective interception | manual X11 shape mask per frame | one API call + `mousemove` |
+| Sprite / frame animation | hand-coded timer loop | trivial (Canvas, CSS, GIF/WebP) |
+| Rigged character animation (Clippy-grade) | not practical | Lottie, Spine, DragonBones |
+| State-driven reactions (idle → annoyed) | hand-coded state machine + redraw | CSS class + JS state |
+| Dynamic font / color / size | Pango rebuild + `queue_draw()` | one CSS variable |
+
+Electron is the correct substrate for everything the HUD does today (transparent text overlay, top/bottom repositioning) and everything planned (animated avatar, reaction states). The HUD stays Electron.
+
 ## Why X11 (and not Wayland)?
 
 Short answer: Wayland's security model deliberately forbids the three things
@@ -148,7 +194,17 @@ windows, so OCR of Wayland-native apps won't work that way.
 ## TODO
 
 - GPU acceleration for jp_detect + manga-ocr-rs (CUDA EP) — would reduce per-crop latency from seconds to milliseconds
-- Native Wayland support via xdg-desktop-portal — blocked on a UX redesign, not just a capture backend (see ["Why X11 (and not Wayland)?"](#why-x11-and-not-wayland) above)
+- Native Wayland support via xdg-desktop-portal — blocked on a UX redesign, not just a capture backend (see ["Why X11 (and not Wayland)?"](#why-x11-and-not-wayland) above).
+  Design decisions so far:
+  - Backend detection at startup: probe `WAYLAND_DISPLAY` and `XDG_SESSION_TYPE`; route to `DisplayBackend::X11` or `::Wayland`.
+  - X11 path: already done — `capture::capture_x11()` uses `x11rb` + `XGetImage` (see `lenzu/src/capture.rs`).
+  - Wayland path (Screenshot portal): `ashpd::desktop::screenshot::Screenshot` with `interactive(false)` — one-shot PNG of the full desktop, crop `W×H` centered on cursor anchor. Sequence: hide Lenzu window → async portal call → read PNG → decode → crop → show window.
+    **Performance warning:** this path is structurally ~20–80× slower than X11 `XGetImage`. X11 lens capture (~400×400) is 5–15 ms (raw BGRA over Unix socket, no encoding). The portal always captures the full screen, compositor PNG-encodes it to tmpfs (~50–200 ms at 1080p), then Rust PNG-decodes it again (~50–200 ms). Total: **150–450 ms per trigger** — a noticeable pause. The only Wayland path that approaches X11 speed is the ScreenCast portal + PipeWire (raw shared-memory frame, no PNG), but that requires `libpipewire`, session negotiation, and stream setup — significantly heavier infrastructure.
+  - **Open problem — global cursor position:** No standard XDG portal exposes the pointer's absolute screen coordinates. Under XWayland GDK's `root_win.device_position()` works; on native Wayland GTK3 it returns surface-relative coordinates (effectively useless for screen-space anchoring). This is the core UX redesign item: the interaction model must be rethought (e.g., a global-shortcut-triggered capture that anchors to the _last known_ cursor position from GDK events, rather than the live polling loop used today).
+  - **HUD window (Electron) — mostly fine:** `screen.getCursorScreenPoint()` and `setPosition()` in Electron work under both XWayland and native-Wayland Electron (Chromium Ozone). The `override_redirect` helper is X11-only but already fails gracefully (`try/catch` in `main.ts`); `alwaysOnTop: true` is the Wayland fallback. Transparent window works on GNOME/KDE compositors. The `enable-transparent-visuals` Chromium switch is X11-specific but harmless on Wayland.
+  - **HUD auto-reposition — broken on native Wayland:** The top/bottom decision (`frac > 0.70 → "top"`, `frac < 0.30 → "bottom"`) runs in Rust and is sent to Electron via UDP. Electron just obeys the command; it has no cursor-tracking of its own for this. If Rust's `root_win.device_position()` returns garbage (native Wayland), the HUD stays stuck at its initial position. Fix is the same as the cursor-position problem above — needs a Wayland-aware event source.
+  - **API note:** `ashpd` has had several breaking changes; verify against the installed 0.8.x API before writing real code. The `Screenshot::request().interactive(false)` builder from older docs is stale.
+  - **Starting point:** `lenzu/src/capture.rs` contains the working X11 implementation (`capture_x11`, `screen_size`). Add Wayland-specific functions here (or a `capture_wayland.rs` sibling re-exported from `capture.rs`) rather than recreating a `capture/` subdirectory with a trait hierarchy — the current flat layout is intentional.
 - Multi-monitor capture at non-zero offsets
 
 ### Wish-list
