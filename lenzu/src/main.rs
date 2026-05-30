@@ -193,8 +193,13 @@ fn spawn_server(port: u16) -> Option<std::process::Child> {
         let mut c = std::process::Command::new("node_modules/.bin/electron");
         c.args(["dist/main.js"]).current_dir(&dir);
         c
+    } else if let Ok(appdir) = std::env::var("APPDIR") {
+        // AppImage: APPDIR is set by the AppRun hook but usr/bin is NOT added to
+        // PATH, so Command::new("lenzu-hud") gets ENOENT.  Use the absolute path.
+        let hud = std::path::PathBuf::from(appdir).join("usr/bin/lenzu-hud");
+        std::process::Command::new(hud)
     } else {
-        // Packaged: lenzu-hud is electron-builder's launcher binary on PATH.
+        // System install: lenzu-hud is on PATH (e.g. /usr/bin/lenzu-hud from .deb).
         std::process::Command::new("lenzu-hud")
     };
 
