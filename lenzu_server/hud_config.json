@@ -1,7 +1,7 @@
 {
     "height": 200,
-    "background_opacity": 0.85,
-    "text_color": "#00FFCC",
+    "background_opacity": 0.45,
+    "text_color": "#f5e642",
     "font_size_pt": 13,
     "min_font_size_pt": 0,
     "default_text": "Hello world, Hello Shiroe!",
