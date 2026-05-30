@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.7
+
+- **HUD color/opacity regression fix** — yellow text (`#f5e642`) and semi-transparent background (`0.45`) restored. A prior schema-alignment commit renamed `hud_config.json` keys from camelCase to snake_case, accidentally activating a dormant cyan `#00FFCC` and opaque `0.85` that had always been in the file but were silently ignored because the camelCase keys didn't match the TypeScript interface.
+
 ### What's new in v0.1.6
 
 - **AppImage HUD fix** — `lenzu-hud` now resolves via `$APPDIR/usr/bin/lenzu-hud` when running inside the AppImage. v0.1.5 shipped with the Electron HUD silently failing to spawn (ENOENT) because AppRun sets `APPDIR` but never adds `usr/bin` to `PATH`.
