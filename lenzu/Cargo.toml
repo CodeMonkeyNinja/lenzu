@@ -7,6 +7,7 @@ description = "Transparent OCR lens overlay for Linux desktop with Japanese-lang
 homepage = "https://github.com/CodeMonkeyNinja/lenzu"
 repository = "https://github.com/CodeMonkeyNinja/lenzu"
 authors = ["Hideki A. Ikeda"]
+publish = false
 
 [[bin]]
 name = "lenzu"
