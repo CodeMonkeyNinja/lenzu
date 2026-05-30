@@ -42,7 +42,7 @@ depends = "$auto, mecab-ipadic-utf8, fonts-noto-cjk, fonts-ipafont-gothic, lenzu
 recommends = "lenzu-models-dbnet"
 
 [features]
-default = []
+default = ["onnx"]
 onnx = ["jp_detect/onnx"]
 
 [dependencies]
