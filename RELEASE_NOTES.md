@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.6
+
+- **AppImage HUD fix** — `lenzu-hud` now resolves via `$APPDIR/usr/bin/lenzu-hud` when running inside the AppImage. v0.1.5 shipped with the Electron HUD silently failing to spawn (ENOENT) because AppRun sets `APPDIR` but never adds `usr/bin` to `PATH`.
+
 ### What's new in v0.1.5
 
 - **Single-instance guard** — a second `lenzu` launch detects the running instance via PID file and exits cleanly instead of spawning a duplicate lens + HUD.
