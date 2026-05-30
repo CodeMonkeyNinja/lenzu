@@ -396,6 +396,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Ensure /dev/shm/lenzu/ exists for all runtime output files.
     let _ = std::fs::create_dir_all("/dev/shm/lenzu");
 
+    // Single-instance guard — bail out if another lenzu is already running.
+    const PID_FILE: &str = "/dev/shm/lenzu/lenzu.pid";
+    if let Ok(existing) = std::fs::read_to_string(PID_FILE) {
+        if let Ok(pid) = existing.trim().parse::<libc::pid_t>() {
+            let alive = unsafe { libc::kill(pid, 0) } == 0;
+            if alive {
+                eprintln!("lenzu: already running (pid {pid}) — exiting");
+                std::process::exit(1);
+            }
+        }
+    }
+    let _ = std::fs::write(PID_FILE, format!("{}\n", std::process::id()));
+
     // Multi-threaded tokio runtime owned for the lifetime of the process.
     // The OCR worker spawns async tasks onto it so a new shift+* input can
     // cancel an in-flight HTTP request. GTK/glib still runs on the main
@@ -1503,5 +1516,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     gtk::main();
+    let _ = std::fs::remove_file(PID_FILE);
     Ok(())
 }
