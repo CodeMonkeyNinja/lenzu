@@ -195,6 +195,20 @@ windows, so OCR of Wayland-native apps won't work that way.
 
 Tracked in [GitHub Issues](https://github.com/CodeMonkeyNinja/lenzu/issues).
 
+## License
+
+| Component | License |
+|---|---|
+| Lenzu (Rust client binary) | MIT |
+| lenzu-hud (Electron HUD) | MIT |
+| DBNet ONNX model (`stabrise-text_detection_dbnet_ml_v02_model.onnx`) | **AGPL-3.0** — shipped as a separate sidecar, not bundled in the MIT AppImage |
+| manga-ocr ONNX models (`mayocream/manga-ocr-onnx`) | Apache-2.0 |
+| MeCab + IPADIC dictionary | BSD-3-Clause / BSD-style (system package, dynamically linked) |
+| GTK3, Cairo, Pango, GLib | LGPL-2.1+ (system packages, dynamically linked) |
+| Electron / Chromium | MIT + BSD variants (see Electron's own license) |
+
+Full per-crate and per-dependency attribution is in [`lenzu/NOTICES.md`](lenzu/NOTICES.md) (also accessible in-app via **Shift+H → About**).
+
 ## History
 
 Lenzu was originally developed at
