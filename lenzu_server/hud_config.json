@@ -2,7 +2,7 @@
     "height": 200,
     "background_opacity": 0.45,
     "text_color": "#f5e642",
-    "font_size_pt": 13,
+    "font_size_pt": 24,
     "min_font_size_pt": 0,
     "default_text": "Hello world, Hello Shiroe!",
     "udp_port": 7331,
