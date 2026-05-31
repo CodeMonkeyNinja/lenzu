@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.11
+
+- **Removed stale `models/` directory** — Sarashina2.2 prototype content that was already archived in `lenzu-prototypes`; had no relation to Lenzu's actual runtime models (DBNet + manga-ocr).
+
 ### What's new in v0.1.10
 
 - **CI cleanup** — removed all Gemini-driven workflows (6 files, 1164 lines); `release.yml` is now the only workflow.
