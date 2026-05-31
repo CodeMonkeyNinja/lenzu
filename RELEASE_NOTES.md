@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.14
+
+- **CI fix (take 3)** — clear stale AppImages from cached `target/appimage/` before building so the bundle glob always picks the freshly-built AppImage, not an older one left over from a previous cached build.
+
 ### What's new in v0.1.13
 
 - **CI fix (take 2)** — replaced `cargo clean -p lenzu` with explicit `rm -fv target/release/lenzu` before release build; `cargo clean -p` matched 0 files in the workspace context, leaving the stale cached binary in place.
