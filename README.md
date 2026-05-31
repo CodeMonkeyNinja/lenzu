@@ -2,6 +2,8 @@
 
 **Install:** grab `lenzu-bundle-X.Y.Z.tar` from the [latest release](https://github.com/CodeMonkeyNinja/lenzu/releases/latest) — quick-start (extract, model installer, `./run.sh`) is on the release page.
 
+**Docs:** [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
+
 **Linux only** (X11, GTK3). No Windows or macOS support.
 
 Desktop OCR lens — a transparent floating window that follows the mouse cursor, captures the region under it on demand, and sends it to a local or remote LLM for OCR and translation. Results appear in a separate transparent overlay HUD (`lenzu_server`).
