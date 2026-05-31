@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.12
+
+- **CI fix** — `cargo clean -p lenzu` before release build prevents stale cached binary when only the version number changes in `Cargo.toml`.
+
 ### What's new in v0.1.11
 
 - **Removed stale `models/` directory** — Sarashina2.2 prototype content that was already archived in `lenzu-prototypes`; had no relation to Lenzu's actual runtime models (DBNet + manga-ocr).
