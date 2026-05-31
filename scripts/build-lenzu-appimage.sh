@@ -86,7 +86,7 @@ cat >"$APPDIR/usr/bin/lenzu-hud" <<'WRAPPER'
 #!/usr/bin/env bash
 HERE="$(dirname "$(readlink -f "$0")")"
 APPDIR_ROOT="$(cd "$HERE/../.." && pwd)"
-exec "$APPDIR_ROOT/usr/lib/lenzu-hud/lenzu-hud" --no-sandbox "$@"
+exec "$APPDIR_ROOT/usr/lib/lenzu-hud/lenzu-hud" --no-sandbox --disable-gpu "$@"
 WRAPPER
 chmod +x "$APPDIR/usr/bin/lenzu-hud"
 

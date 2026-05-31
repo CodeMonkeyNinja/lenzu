@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.15
+
+- **HUD GPU crash fix** — added `--disable-gpu` to the `lenzu-hud` AppImage wrapper. Chromium's GPU/zygote subprocesses fail to fork inside the FUSE-mounted AppImage (`execvp /proc/self/exe` → `error_code=1002`), causing the HUD to disappear mid-session. Software rendering is correct for a text overlay.
+
 ### What's new in v0.1.14
 
 - **CI fix (take 3)** — clear stale AppImages from cached `target/appimage/` before building so the bundle glob always picks the freshly-built AppImage, not an older one left over from a previous cached build.
