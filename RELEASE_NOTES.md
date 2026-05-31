@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.13
+
+- **CI fix (take 2)** — replaced `cargo clean -p lenzu` with explicit `rm -fv target/release/lenzu` before release build; `cargo clean -p` matched 0 files in the workspace context, leaving the stale cached binary in place.
+
 ### What's new in v0.1.12
 
 - **CI fix** — `cargo clean -p lenzu` before release build prevents stale cached binary when only the version number changes in `Cargo.toml`.

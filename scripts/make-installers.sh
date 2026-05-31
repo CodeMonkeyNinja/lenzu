@@ -97,9 +97,14 @@ build_appimage() {
     #    Cargo.toml always produces a binary with the correct CARGO_PKG_VERSION.
     #    Without this, the CI cargo cache (restored via restore-keys fallback)
     #    can serve a stale binary that Cargo considers up-to-date because no
-    #    .rs sources changed.  cargo clean -p lenzu only drops the lenzu output,
-    #    not the dependency cache, so the build is still fast.
-    cargo clean -p lenzu
+    #    .rs sources changed.  Deleting the binary directly is more reliable
+    #    than cargo clean -p lenzu (which matched 0 files in the workspace context).
+    if [[ -f "$REPO_ROOT/target/release/lenzu" ]]; then
+        log "removing stale binary: $(file "$REPO_ROOT/target/release/lenzu" | head -1)"
+        rm -fv "$REPO_ROOT/target/release/lenzu"
+    else
+        log "no stale binary found — clean build"
+    fi
     cargo build --release --all-features -p lenzu
     "$REPO_ROOT/scripts/build-lenzu-appimage.sh" "$OUT_APPIMAGE"
 
