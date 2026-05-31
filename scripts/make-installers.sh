@@ -92,6 +92,14 @@ build_appimage() {
     #    and drops a wrapper at AppDir/usr/bin/lenzu-hud (which lenzu's
     #    spawn_server() finds via PATH).  Result: one self-contained
     #    lenzu*.AppImage.
+    #
+    #    Force a clean rebuild of the lenzu binary so a version-only bump in
+    #    Cargo.toml always produces a binary with the correct CARGO_PKG_VERSION.
+    #    Without this, the CI cargo cache (restored via restore-keys fallback)
+    #    can serve a stale binary that Cargo considers up-to-date because no
+    #    .rs sources changed.  cargo clean -p lenzu only drops the lenzu output,
+    #    not the dependency cache, so the build is still fast.
+    cargo clean -p lenzu
     cargo build --release --all-features -p lenzu
     "$REPO_ROOT/scripts/build-lenzu-appimage.sh" "$OUT_APPIMAGE"
 
