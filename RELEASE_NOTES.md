@@ -1,5 +1,11 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.10
+
+- **CI cleanup** — removed all Gemini-driven workflows (6 files, 1164 lines); `release.yml` is now the only workflow.
+- **Node.js 24 opt-in** — `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` added to release workflow; build node aligned to project's `.nvmrc` (22).
+- **README** — TODO/Wish-list replaced with link to GitHub Issues; License table added.
+
 ### What's new in v0.1.9
 
 - **HUD background opacity fix** — restored 0.72 opacity (was incorrectly set to 0.45 in v0.1.7 fix; correct DEFAULT_CONFIG value is 0.72). All three Gemini schema regressions now resolved: yellow text, 24pt font, semi-transparent background.
