@@ -45,7 +45,7 @@
     "electron": "41.3.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.25.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.0"
   },
   "build": {
     "appId": "io.github.codemonkeyninja.lenzu.hud",
