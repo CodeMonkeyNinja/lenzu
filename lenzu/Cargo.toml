@@ -52,14 +52,14 @@ manga-ocr-rs = "0.1.3"
 mecab-furigana-rs = "0.2.0"
 gtk = { version = "0.18", features = ["v3_24"] }
 gdk = { version = "0.18", features = ["v3_24"] }
-glib = "0.20"
+glib = "0.22"
 async-channel = "2"
-gdk-pixbuf = "0.18"
-cairo-rs = "0.18"
-pango = "0.18"
-pangocairo = "0.18"
+gdk-pixbuf = "0.22"
+cairo-rs = "0.22"
+pango = "0.22"
+pangocairo = "0.22"
 x11rb = { version = "0.13", features = ["all-extensions"] }
-reqwest = { version = "0.12", features = ["blocking", "json"] }
+reqwest = { version = "0.13", features = ["blocking", "json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.22"
