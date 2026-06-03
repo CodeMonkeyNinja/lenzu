@@ -84,9 +84,10 @@ build_appimage() {
 
     mkdir -p "$OUT_APPIMAGE"
 
-    # Remove any stale AppImages from the cargo cache so the glob that selects
-    # the built AppImage for bundling always picks the freshly-built one.
-    rm -fv "$OUT_APPIMAGE"/lenzu*.AppImage "$OUT_APPIMAGE"/lenzu*.appimage 2>/dev/null || true
+    # Remove any stale AppImages and bundle tars from the cargo cache so the
+    # globs that select build outputs for upload always pick freshly-built files.
+    rm -fv "$OUT_APPIMAGE"/lenzu*.AppImage "$OUT_APPIMAGE"/lenzu*.appimage \
+           "$OUT_APPIMAGE"/lenzu-bundle-*.tar 2>/dev/null || true
 
     # 1) Rust client.  --all-features turns on `onnx` (DBNet text detection)
     #    so the bundled DBNet sidecar tarball is actually usable; without it
