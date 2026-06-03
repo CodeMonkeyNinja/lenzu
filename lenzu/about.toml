@@ -30,6 +30,7 @@ accepted = [
     "0BSD",
     "Unlicense",
     "OpenSSL",
+    "NCSA",
 ]
 
 # Crates whose license metadata is missing/ambiguous in their Cargo.toml.

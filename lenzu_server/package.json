@@ -31,7 +31,10 @@
   "license": "MIT",
   "//": "Electron 41.3.0 confirmed working for transparent:true on Linux X11 (re-tested 2026-04-25 against integrated client and standalone HUD demo). The 36-41 transparency regression that previously held us on 35.x has been resolved upstream.",
   "pnpm": {
-    "onlyBuiltDependencies": ["electron", "esbuild"],
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ],
     "overrides": {
       "electron": "41.3.0",
       "tar": "^7.5.11",
@@ -41,11 +44,11 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.9.1",
     "electron": "41.3.0",
     "electron-builder": "^25.1.8",
-    "esbuild": "^0.25.0",
-    "vitest": "^4.1.0"
+    "esbuild": "^0.25.12",
+    "vitest": "^4.1.8"
   },
   "build": {
     "appId": "io.github.codemonkeyninja.lenzu.hud",
@@ -67,7 +70,10 @@
       "output": "dist-deb"
     },
     "linux": {
-      "target": ["deb", "AppImage"],
+      "target": [
+        "deb",
+        "AppImage"
+      ],
       "category": "Utility",
       "synopsis": "Transparent desktop HUD for Lenzu OCR overlay",
       "maintainer": "Hideki A. Ikeda <hidekiai@CodeMonkeyNinja.dev@users.noreply.github.com>"
