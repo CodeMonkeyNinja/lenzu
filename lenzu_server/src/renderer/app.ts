@@ -18,15 +18,17 @@ declare global {
   }
 }
 
-const subtitleBox  = document.getElementById('subtitle-box') as HTMLDivElement;
-const subtitleText = document.getElementById('subtitle-text') as HTMLParagraphElement;
+const subtitleBox = document.getElementById("subtitle-box") as HTMLDivElement;
+const subtitleText = document.getElementById(
+  "subtitle-text",
+) as HTMLParagraphElement;
 
 let cfg: HudConfig = {
   background_opacity: 0.45,
-  text_color: '#f5e642',
+  text_color: "#f5e642",
   font_size_pt: 24,
   min_font_size_pt: 0,
-  default_text: '',
+  default_text: "",
 };
 
 function renderText(text: string): void {
@@ -35,25 +37,28 @@ function renderText(text: string): void {
   subtitleText.style.fontSize = `${cfg.font_size_pt}pt`;
   subtitleBox.style.background = text
     ? `rgba(10, 10, 10, ${cfg.background_opacity})`
-    : 'transparent';
+    : "transparent";
 }
 
-const POSITIONS = ['top', 'center', 'bottom'] as const;
+const POSITIONS = ["top", "center", "bottom"] as const;
 let posIndex = 2;
 
-document.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (e.key === 'ArrowUp' && posIndex > 0) {
+document.addEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "ArrowUp" && posIndex > 0) {
     posIndex--;
     window.electronHUD.moveWindow(POSITIONS[posIndex]);
-  } else if (e.key === 'ArrowDown' && posIndex < POSITIONS.length - 1) {
+  } else if (e.key === "ArrowDown" && posIndex < POSITIONS.length - 1) {
     posIndex++;
     window.electronHUD.moveWindow(POSITIONS[posIndex]);
   }
 });
 
+const STARTUP_MESSAGES = ["Hello world, Hello Shiroe!", "el psy congroo"];
+
 async function init(): Promise<void> {
   cfg = await window.electronHUD.getConfig();
-  renderText(cfg.default_text);
+  const msg = STARTUP_MESSAGES[Math.random() < 0.5 ? 0 : 1];
+  renderText(msg);
   window.electronHUD.onTextChanged((text: string) => {
     renderText(text);
   });
