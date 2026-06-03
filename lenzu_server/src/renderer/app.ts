@@ -53,7 +53,7 @@ document.addEventListener("keydown", (e: KeyboardEvent) => {
   }
 });
 
-const STARTUP_MESSAGES = ["Hello world, Hello Shiroe!", "el psy congroo"];
+const STARTUP_MESSAGES = ["Hello world, Hello Shiroe!", "エル・プサイ・コングルゥ EL PSY CONGROO"];
 
 async function init(): Promise<void> {
   cfg = await window.electronHUD.getConfig();

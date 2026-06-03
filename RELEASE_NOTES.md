@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.1.16
+
+- **Random startup greeting** — HUD randomly shows either `Hello world, Hello Shiroe!` or `エル・プサイ・コングルゥ EL PSY CONGROO` on launch.
+
 ### What's new in v0.1.15
 
 - **HUD GPU crash fix** — added `--disable-gpu` to the `lenzu-hud` AppImage wrapper. Chromium's GPU/zygote subprocesses fail to fork inside the FUSE-mounted AppImage (`execvp /proc/self/exe` → `error_code=1002`), causing the HUD to disappear mid-session. Software rendering is correct for a text overlay.
