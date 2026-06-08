@@ -36,7 +36,7 @@
       "esbuild"
     ],
     "overrides": {
-      "electron": "42.3.2",
+      "electron": "42.3.3",
       "tar": "^7.5.11",
       "@tootallnate/once": "^3.0.1",
       "tmp": "^0.2.6",
@@ -44,9 +44,9 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
-    "electron": "42.3.2",
-    "electron-builder": "^26.8.1",
+    "@types/node": "^25.9.2",
+    "electron": "42.3.3",
+    "electron-builder": "^26.15.2",
     "esbuild": "^0.28.0",
     "vitest": "^4.1.8"
   },
