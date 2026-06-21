@@ -339,6 +339,103 @@ uses gtk4 0.11.x / glib 0.22.x ecosystem. These PRs only affect `Cargo.lock`.
 | 2026-06-21 | **Unit tests added for known runtime panics** | 9 tests across `jp_ocr_app` (4) and `x11-gtk-lens-test` (5) catch RefCell borrow-across-blocking panics, Pixbuf creation, model-loading graceful failure, and try_borrow pattern — now verifiable in `cargo test` without X11 display. |
 | 2026-06-21 | **`x11-gtk-lens-test` transparent draw fix** | Draw function used `cr.set_source_rgb(0,0,0)` → `paint()`, filling the lens with opaque black and hiding the transparent CSS window background. Changed to `rgba(0,0,0,0)` + `Operator::Source` + switch back to `Over` (matching `jp_ocr_app` pattern). |
 | 2026-06-21 | **SCIM stderr noise identified** | Both lens apps print SCIM init errors on every launch. Traced to GTK4 GDK X11 backend auto-forking `scim-launcher -f x11`. Cosmetic only — app unaffected. `GTK_IM_MODULE` has no effect; suppress via stderr redirect or `apt remove scim`. Documented in §2h. |
+| 2026-06-21 | **Trunk GTK3 dual-glib fix + CI** | `gdk-pixbuf = \"0.19\"` in GTK3 members conflicted with `gdk 0.18`'s internal `gdk-pixbuf 0.18.5`. Pinned to `0.18`. Added GitHub Actions CI (`cargo test --workspace`). Removed all Gemini AI workflows. |
+| 2026-06-21 | **jp_ocr_app spinner lollipop tail fixed** | Cairo `arc()` draws an implicit line from the current path point to the arc start. `show_layout()` leaves the current point at the last glyph, so the arc was connected to it — producing a straight "lollipop tail". Fixed by inserting `cr.new_sub_path()` before `cr.arc()`. See §2i. |
+| 2026-06-21 | **jp_ocr_app white window + frozen spinner during capture fixed** | `flash_alpha=1.0` painted the entire lens area with an opaque white rectangle on every capture, causing the "white window". Additionally, `std::thread::sleep(400ms)` blocked the GTK main loop, preventing the animation timer from firing and keeping the spinner frozen (static). Fixed by removing `flash_alpha` entirely and replacing the blocking sleep with `glib::timeout_add_local(400ms)`. See §2j. |
+
+---
+
+## 2i. Spinner Lollipop Tail — jp_ocr_app (FIXED 2026-06-21)
+
+**Symptom:** The loading spinner in the UI panel appeared distorted — a
+straight line extended from the spinner arc to an off-center point, like
+a lollipop stick.
+
+**Root cause:** Cairo's `cr.arc()` does NOT start a fresh path. If a current
+point exists in the path, `arc()` implicitly draws a straight `line_to()` from
+that point to the arc's start position before drawing the arc itself.
+
+The draw function calls `pangocairo::functions::show_layout()` to render the
+status text (e.g. "CAPTURING...") just before drawing the spinner. PangoCairo's
+`show_layout()` leaves the cairo current point at the last glyph position in the
+layout. The subsequent `cr.arc()` then drew a line from that glyph position back
+to the arc's start, creating the visible tail artifact.
+
+**Fix:**
+
+```rust
+cr.new_sub_path();   // ← break the implicit line-to
+cr.arc(0.0, 0.0, 8.0, 0.0, 1.5 * std::f64::consts::PI);
+```
+
+`cr.new_sub_path()` starts a new sub-path without moving the current point,
+so Cairo has no start point to draw a line from. The same fix applies to any
+`arc()` call that follows text rendering or other drawing that leaves an open
+path.
+
+**Commits:** `be26043` (jp_ocr_app); same pattern fixed in `lenzu` at `75f7dbf`.
+
+---
+
+## 2j. White Window and Frozen Spinner During Capture — jp_ocr_app (FIXED 2026-06-21)
+
+**Symptoms:**
+- The lens window turned solid white for ~160ms whenever a screen capture
+  was triggered.
+- The loading spinner appeared static/frozen during the capturing phase
+  (no rotation), then suddenly jumped to a new angle when the OCR result
+  arrived.
+
+### White window
+
+**Root cause:** `flash_alpha = 1.0` was set immediately after capture
+success, painting a fully opaque white `cr.rectangle()` over the entire
+400×400 lens area (via `cairo::Operator::Over`). The animation timer
+decremented `flash_alpha -= 0.1` per 16ms frame, fading it back to zero
+over ~160ms. During that fade the lens appeared white.
+
+**Fix:** Removed `flash_alpha` entirely — the field was deleted from
+`AppState`, dropped from the draw function, and the animation step removed
+from the 16ms timer. The lens now shows the captured image directly with
+no overlay.
+
+### Frozen spinner
+
+**Root cause:** The capture flow called `std::thread::sleep(400ms)` on the
+main GTK thread to give the compositor time to hide the window before
+`GetImage`. Sleeping on the main thread blocks the glib main loop entirely,
+preventing every registered `glib::timeout_add_local` callback — including
+the 16ms animation timer — from firing. As a result `spinner_angle` was
+never incremented during the entire 400ms wait, so the spinner appeared as
+a static arc.
+
+**Fix:** Replaced the blocking sleep with `glib::timeout_add_local(400ms, ...)`:
+
+```rust
+// Before (blocks main loop — animation timer cannot fire):
+window_poll.set_visible(false);
+while glib::MainContext::default().iteration(false) {}
+std::thread::sleep(Duration::from_millis(400));
+// ... capture, set_visible(true) ...
+
+// After (main loop stays live during the 400ms compositor wait):
+window_poll.set_visible(false);
+while glib::MainContext::default().iteration(false) {}
+glib::timeout_add_local(Duration::from_millis(400), move || {
+    // ... capture, set_visible(true) ...
+    glib::ControlFlow::Break
+});
+```
+
+With the async timer, the main loop keeps running during the 400ms window-hide
+delay: the animation timer fires every 16ms, `spinner_angle` advances, and the
+spinner is already rotating when the window reappears after capture.
+
+**Note:** The `borrow_mut()` scope inside the timeout callback is kept tight —
+state is released before `set_visible(true)` and `queue_draw()` are called,
+per the §2e RefCell scope-guard rule.
+
+**Commits:** `abc70b4`.
 
 ---
 
