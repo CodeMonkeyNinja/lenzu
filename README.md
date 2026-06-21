@@ -23,7 +23,7 @@ The key dif:ference from browser extensions like Yomitan/Rikaichan: this operate
 
 ![--furigana_only preview](docs/Lenzu-demo-furigana-only.gif)
 
-*Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the full 3 min 24 s demo with audio, [download the MP4](assets/Lenzu-demo-2026-04-19_17.01.52.mp4).*
+_Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the full 3 min 24 s demo with audio, [download the MP4](assets/Lenzu-demo-2026-04-19_17.01.52.mp4)._
 
 ![Japanese OCR result](assets/Screenshot-JP.png)
 
@@ -64,13 +64,13 @@ lenzu (GTK3 client)               lenzu_server (Electron)
 
 ### Inference speed on typical hardware
 
-| Backend | VRAM | Typical latency | Confidence scoring |
-| --- | --- | --- | --- |
-| jp_detect + manga-ocr-rs (local, no LLM) | ~150 MB models | ~0.8–2 s per high-confidence crop (CPU) | Det 0-100%, OCR 0-100%; >= 71% both = pass |
-| gemma4:e2b — full GPU (8 GB+) | ~7.4 GB | ~15–30 s | N/A (LLM fallback) |
-| gemma4:e2b — partial GPU | ~2 GB GPU + CPU | 60–120 s | N/A (LLM fallback) |
-| glm-ocr — full GPU (4 GB) | ~2.2 GB | ~5–15 s | N/A (LLM fallback) |
-| Gemini 2.0 Flash (remote) | — | ~3–5 s | N/A (LLM fallback) |
+| Backend                                  | VRAM            | Typical latency                         | Confidence scoring                         |
+| ---------------------------------------- | --------------- | --------------------------------------- | ------------------------------------------ |
+| jp_detect + manga-ocr-rs (local, no LLM) | ~150 MB models  | ~0.8–2 s per high-confidence crop (CPU) | Det 0-100%, OCR 0-100%; >= 71% both = pass |
+| gemma4:e2b — full GPU (8 GB+)            | ~7.4 GB         | ~15–30 s                                | N/A (LLM fallback)                         |
+| gemma4:e2b — partial GPU                 | ~2 GB GPU + CPU | 60–120 s                                | N/A (LLM fallback)                         |
+| glm-ocr — full GPU (4 GB)                | ~2.2 GB         | ~5–15 s                                 | N/A (LLM fallback)                         |
+| Gemini 2.0 Flash (remote)                | —               | ~3–5 s                                  | N/A (LLM fallback)                         |
 
 The local OCR path (jp_detect + manga-ocr-rs) is tried first for all capture modes. When
 both confidence scores pass the 71% gate, no LLM or network call is needed. For 4 GB VRAM
@@ -143,8 +143,10 @@ Electron has `setIgnoreMouseEvents(true, { forward: true })` which passes all cl
 ```ts
 // clicks pass through by default; avatar captures them when hovered
 win.setIgnoreMouseEvents(true, { forward: true });
-avatar.addEventListener('mouseenter', () => win.setIgnoreMouseEvents(false));
-avatar.addEventListener('mouseleave', () => win.setIgnoreMouseEvents(true, { forward: true }));
+avatar.addEventListener("mouseenter", () => win.setIgnoreMouseEvents(false));
+avatar.addEventListener("mouseleave", () =>
+  win.setIgnoreMouseEvents(true, { forward: true }),
+);
 ```
 
 That is the entire selective click-interception logic. If the avatar gets bombarded with clicks, a JS counter and a CSS class change express the "annoyed" state — no X11 region recalculation per frame.
@@ -153,15 +155,15 @@ That is the entire selective click-interception logic. If the avatar gets bombar
 
 ### Verdict
 
-| Feature | GTK + Cairo | Electron |
-|---|---|---|
-| Transparent borderless window | ✓ | ✓ |
-| ARGB compositing (no ghost text) | ✓ | ✓ |
-| Click-through + selective interception | manual X11 shape mask per frame | one API call + `mousemove` |
-| Sprite / frame animation | hand-coded timer loop | trivial (Canvas, CSS, GIF/WebP) |
-| Rigged character animation (Clippy-grade) | not practical | Lottie, Spine, DragonBones |
-| State-driven reactions (idle → annoyed) | hand-coded state machine + redraw | CSS class + JS state |
-| Dynamic font / color / size | Pango rebuild + `queue_draw()` | one CSS variable |
+| Feature                                   | GTK + Cairo                       | Electron                        |
+| ----------------------------------------- | --------------------------------- | ------------------------------- |
+| Transparent borderless window             | ✓                                 | ✓                               |
+| ARGB compositing (no ghost text)          | ✓                                 | ✓                               |
+| Click-through + selective interception    | manual X11 shape mask per frame   | one API call + `mousemove`      |
+| Sprite / frame animation                  | hand-coded timer loop             | trivial (Canvas, CSS, GIF/WebP) |
+| Rigged character animation (Clippy-grade) | not practical                     | Lottie, Spine, DragonBones      |
+| State-driven reactions (idle → annoyed)   | hand-coded state machine + redraw | CSS class + JS state            |
+| Dynamic font / color / size               | Pango rebuild + `queue_draw()`    | one CSS variable                |
 
 Electron is the correct substrate for everything the HUD does today (transparent text overlay, top/bottom repositioning) and everything planned (animated avatar, reaction states). The HUD stays Electron.
 
@@ -173,7 +175,7 @@ client simply isn't allowed to do them:
 
 1. **Track the global cursor.** Lenzu polls the pointer position ~60×/sec so the
    lens follows your mouse anywhere on screen. A Wayland client can only see the
-   cursor while it's *over its own window* — it can't know where your mouse is on
+   cursor while it's _over its own window_ — it can't know where your mouse is on
    someone else's window or the desktop.
 2. **Place its own window under the cursor.** Lenzu moves the lens to absolute
    screen coordinates to sit over whatever you're pointing at. Wayland clients
@@ -199,15 +201,15 @@ Tracked in [GitHub Issues](https://github.com/CodeMonkeyNinja/lenzu/issues).
 
 ## License
 
-| Component | License |
-|---|---|
-| Lenzu (Rust client binary) | MIT |
-| lenzu-hud (Electron HUD) | MIT |
+| Component                                                            | License                                                                       |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Lenzu (Rust client binary)                                           | MIT                                                                           |
+| lenzu-hud (Electron HUD)                                             | MIT                                                                           |
 | DBNet ONNX model (`stabrise-text_detection_dbnet_ml_v02_model.onnx`) | **AGPL-3.0** — shipped as a separate sidecar, not bundled in the MIT AppImage |
-| manga-ocr ONNX models (`mayocream/manga-ocr-onnx`) | Apache-2.0 |
-| MeCab + IPADIC dictionary | BSD-3-Clause / BSD-style (system package, dynamically linked) |
-| GTK3, Cairo, Pango, GLib | LGPL-2.1+ (system packages, dynamically linked) |
-| Electron / Chromium | MIT + BSD variants (see Electron's own license) |
+| manga-ocr ONNX models (`mayocream/manga-ocr-onnx`)                   | Apache-2.0                                                                    |
+| MeCab + IPADIC dictionary                                            | BSD-3-Clause / BSD-style (system package, dynamically linked)                 |
+| GTK3, Cairo, Pango, GLib                                             | LGPL-2.1+ (system packages, dynamically linked)                               |
+| Electron / Chromium                                                  | MIT + BSD variants (see Electron's own license)                               |
 
 Full per-crate and per-dependency attribution is in [`lenzu/NOTICES.md`](lenzu/NOTICES.md) (also accessible in-app via **Shift+H → About**).
 

@@ -4,6 +4,15 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # These gtk-rs-core crates are tightly coupled to gtk/gdk 0.18.
+      # Bumping them independently causes type mismatches (gtk 0.18
+      # pulls 0.18.x versions internally). Bump all six together
+      # when upgrading to gtk 0.22.
+      - dependency-name: "gdk-pixbuf"
+      - dependency-name: "cairo-rs"
+      - dependency-name: "pango"
+      - dependency-name: "pangocairo"
     groups:
       cargo:
         patterns:
