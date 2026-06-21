@@ -13,10 +13,10 @@ transparent overlay windows, X11 pointer tracking, and related desktop issues.
 (gtk4-rs 0.11.x / glib 0.22.x). The workspace is now fully GTK4.
 
 **Members migrated:**
-- `jp_ocr_app` (was GTK3 0.18.2) → GTK4 0.11.3, with x11rb pointer tracking
-- `x11-gtk-lens-test` (was `x11-gtk3-lens-test`, GTK3 0.18.2) → GTK4 0.11.3
-- `gtk4_dialogbox_test` (was GTK4 0.8.1) → 0.11.3
-- `gtk_gdk_test` (was GTK4 0.8.1) → 0.11.3
+- [`jp_ocr_app`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/jp_ocr_app) (was GTK3 0.18.2) → GTK4 0.11.3, with x11rb pointer tracking
+- [`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test) (was [`x11-gtk3-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk3-lens-test), GTK3 0.18.2) → GTK4 0.11.3
+- [`gtk4_dialogbox_test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/gtk4_dialogbox_test) (was GTK4 0.8.1) → 0.11.3
+- [`gtk_gdk_test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/gtk_gdk_test) (was GTK4 0.8.1) → 0.11.3
 
 ### Key Workarounds Used
 
@@ -182,7 +182,7 @@ borrow is active.
 
 ### 2f. `Session`/Model Loading Must Be Optional
 
-The ONNX detection prototype (`x11-gtk-lens-test`) panicked on startup with
+The ONNX detection prototype ([`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test)) panicked on startup with
 `.expect("No valid .onnx file found (>1MB)!")` when no model file was in cwd.
 Always make model loading graceful:
 
@@ -230,14 +230,14 @@ window's transparent background) with the source colour. Switching back to
 `Operator::Over` after the clear ensures subsequent drawing operations
 composite correctly.
 
-This pattern is used in `jp_ocr_app` and was applied to `x11-gtk-lens-test`
+This pattern is used in [`jp_ocr_app`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/jp_ocr_app) and was applied to [`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test)
 in the same fix.
 
 ---
 
 ### 2h. SCIM Stderr Noise — GTK4 GDK Auto-Launches Broken SCIM
 
-Both `jp_ocr_app` and `x11-gtk-lens-test` print to stderr on every launch:
+Both [`jp_ocr_app`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/jp_ocr_app) and [`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test) print to stderr on every launch:
 
 ```
 Loading socket Config module ...
@@ -468,7 +468,7 @@ clock keeps ticking.
   DrawingArea child) after `set_visible(true)` — GTK4 may not propagate
   invalidation to children on re-map.
 
-**Tracked in code:** `TODO(proto)` comment in `prototypes/jp_ocr_app/src/main.rs`
+**Tracked in code:** `TODO(proto)` comment in [`prototypes/jp_ocr_app/src/main.rs`](https://github.com/HidekiAI/lenzu-prototypes/blob/trunk/prototypes/jp_ocr_app/src/main.rs)
 next to the `window_anim.queue_draw()` call.
 
 ---

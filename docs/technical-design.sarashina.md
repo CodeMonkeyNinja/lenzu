@@ -25,7 +25,7 @@ vs. Lenzu's <15 s fallback budget: ~150×.
 
 **Do not revisit** `sarashina2.2-vision-3b` (or `sarashina2.2-ocr`, same
 custom arch) as a local OCR tier on CPU hardware. Next candidate gated on
-pure-Rust viability: **yomitoku** (see `prototypes/sarashina-vision-py/README.md`
+pure-Rust viability: **yomitoku** (see [`prototypes/sarashina-vision-py/README.md`](https://github.com/HidekiAI/lenzu-prototypes/blob/trunk/prototypes/sarashina-vision-py/README.md)
 for the run details and the bar to clear before starting).
 
 The text-model tier (§4, `sarashina-mini-rs`) is unaffected and remains the

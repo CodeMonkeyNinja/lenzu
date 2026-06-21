@@ -72,7 +72,7 @@ for all its GTK members. Key workarounds documented in
 | `gdk::keys::constants` private | `gdk::Key::Escape` directly |
 
 A test crate is on the `feat/gtk4-upgrade-test` branch at
-`prototypes/gtk4-lens-test/` for prototyping the main lenzu crate's migration.
+[`prototypes/x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test) for prototyping the main lenzu crate's migration. *(was `gtk4-lens-test` — renamed)*
 
 ---
 
@@ -99,7 +99,7 @@ Would require rewriting the GTK3-specific patterns in main.rs:
 
 ### Alternative: Replace GTK with winit + cairo
 
-Prototyped in `lenzu-prototypes/prototypes/winit-test/`. Would eliminate all GTK
+Prototyped in [`prototypes/winit-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/winit-test). Would eliminate all GTK
 dependencies but requires implementing window management, transparency, cursor
 tracking, and rendering from scratch.
 

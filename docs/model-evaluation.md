@@ -69,7 +69,7 @@ when confidence is too low.
 
 ### sarashina2.2-vision-3b (tested 2026-04-19)
 - **HuggingFace**: `sbintuitions/sarashina2.2-vision-3b` (~3 B, ~7.1 GiB weights on disk)
-- **Runtime**: Python sidecar prototype (`prototypes/sarashina-vision-py/`), `transformers==4.49.0`,
+- **Runtime**: Python sidecar prototype ([`prototypes/sarashina-vision-py`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/sarashina-vision-py)), `transformers==4.49.0`,
   `AutoModelForCausalLM.from_pretrained(..., trust_remote_code=True)`, CPU `torch.float32`.
   GPU path unavailable — host's Quadro M4000 is sm_5.2, unsupported by modern PyTorch kernels.
 - **Test**: standard 4-image battery (tategaki / yokogaki / sample-texts / ubunchu01_02), same
@@ -81,7 +81,7 @@ when confidence is too low.
 - **Verdict**: Unusable. ~150× over Lenzu's 15 s local-fallback budget, and eats enough RAM +
   CPU that the primary manga-ocr-rs tier can't run in parallel. The same custom architecture
   is used by `sarashina2.2-ocr`, so that variant is ruled out by extension. **Do not re-prototype
-  sarashina vision on CPU hardware.** Full run notes: `prototypes/sarashina-vision-py/README.md`.
+  sarashina vision on CPU hardware.** Full run notes: [`prototypes/sarashina-vision-py/README.md`](https://github.com/HidekiAI/lenzu-prototypes/blob/trunk/prototypes/sarashina-vision-py/README.md).
   The text-only tier (`sarashina-mini-rs`, ONNX via `ort`) is unaffected and remains the
   green-light path.
 
@@ -174,7 +174,7 @@ when confidence is too low.
 - **Engine**: PaddleOCR-json (PaddlePaddle C++ inference) or RapidOCR-json (ONNX Runtime)
 - **Status**: Not yet tested. Maintainer warns vertical Japanese is poor (issue #434).
   Recommends manga-ocr for manga. Worth a quick eval via Docker HTTP API.
-- **Prototype**: `prototypes/umi-ocr-eval/`
+- **Prototype**: [`prototypes/umi-ocr-eval`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/umi-ocr-eval)
 
 ### HuggingFace manga OCR models
 

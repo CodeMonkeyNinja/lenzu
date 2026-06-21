@@ -1,6 +1,6 @@
 # Technical Design: manga-ocr-rs — local ONNX OCR tier
 
-**Status**: Prototype (`prototypes/manga-ocr-test`)  
+**Status**: Prototype ([`prototypes/manga-ocr-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/manga-ocr-test))  
 **Scope**: Image-to-text only (Japanese OCR). No translation, no furigana stripping.  
 **Integration target**: New optional OCR tier in lenzu, sitting before the Ollama tier.
 
