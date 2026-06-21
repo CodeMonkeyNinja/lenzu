@@ -55,6 +55,27 @@ is impossible without breaking the build.
 
 ---
 
+## 3b. GTK4 Migration — Prototypes Succeeded
+
+The lenzu-prototypes workspace has completed a GTK3→GTK4 migration (gtk4-rs 0.11.x)
+for all its GTK members. Key workarounds documented in
+[prototypes-desktop-issues.md](prototypes-desktop-issues.md) §1:
+
+| Problem | Workaround |
+|---------|------------|
+| `gdk::Screen::default()` removed | x11rb `query_pointer()` on root window |
+| `window.move_()` removed | x11rb `configure_window()` |
+| `input_shape_combine_region()` removed | `surface.set_input_region(Some(&region))` |
+| `set_keep_above(true)` removed | x11rb `_NET_WM_STATE` ClientMessage |
+| `connect_draw` → raw Cairo | `WidgetExt::snapshot()` with `gtk::Snapshot` |
+| `pangocairo::show_layout()` moved | `pangocairo::functions::show_layout()` |
+| `gdk::keys::constants` private | `gdk::Key::Escape` directly |
+
+A test crate is on the `feat/gtk4-upgrade-test` branch at
+`prototypes/gtk4-lens-test/` for prototyping the main lenzu crate's migration.
+
+---
+
 ## 4. Migration Surface Area
 
 Only one file uses the GTK family: **`lenzu/src/main.rs`** (~180 of 1536 lines).
@@ -131,14 +152,14 @@ The options are:
 | Option | Effort | Risk | Notes |
 |---|---|---|---|
 | **Stay on 0.18** | None | Low | Works today; dual glib in lockfile is cosmetic |
-| **Migrate to GTK4** | High | High | Major rewrite of main.rs; rejected in planning.md |
+| **Migrate to GTK4** | High | Medium | Prototypes succeeded; test crate on `feat/gtk4-upgrade-test` |
 | **Replace GTK with winit** | Very high | High | Prototyped but bare-bones; full window stack needed |
 
 ### Answer to "is it possible to upgrade?"
 
 **No** — not along the gtk-rs version line. `gtk` 0.18.2 is the terminal release.
-If we want to move off it, the only path is GTK4 or a completely different
-windowing library.
+GTK4 migration is now proven possible (prototypes workspace), with a test crate
+on the `feat/gtk4-upgrade-test` branch to port the main lenzu crate.
 
 ---
 
