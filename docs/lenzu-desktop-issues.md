@@ -1,7 +1,7 @@
 # GTK-rs Dependency Analysis — Upgrade Blockers
 
 **Scope:** Main `lenzu` crate. Prototype-specific findings in
-`lenzu-prototypes/docs/prototypes-desktop-issues.md`.
+[`prototypes-desktop-issues.md`](prototypes-desktop-issues.md) (same `lenzu/docs/` directory).
 
 ---
 

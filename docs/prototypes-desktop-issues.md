@@ -473,6 +473,7 @@ next to the `window_anim.queue_draw()` call.
 
 ---
 
-*This document is written from the `lenzu-prototypes` workspace. Updates flow
-one-way: findings here are appended to this file, then cross-referenced in the
-main repo's `lenzu-desktop-issues.md` as needed.*
+*This document lives in `lenzu/docs/` alongside
+[`lenzu-desktop-issues.md`](lenzu-desktop-issues.md). Prototype source code
+referenced here is at
+[github.com/HidekiAI/lenzu-prototypes](https://github.com/HidekiAI/lenzu-prototypes).*
