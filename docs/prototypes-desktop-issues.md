@@ -439,6 +439,40 @@ per the §2e RefCell scope-guard rule.
 
 ---
 
+## 2k. Spinner Does Not Rotate During OCR Wait — jp_ocr_app (TODO)
+
+**Symptom:** The loading spinner shows as a static C/U-shaped arc during
+the "CAPTURING…" / OCR-in-progress phase. `spinner_angle` is incremented
+by the 16ms animation timer and `queue_draw()` is called, but the window
+does not visually update.
+
+**Suspected cause:** The capture flow calls `window.set_visible(false)`
+then `window.set_visible(true)` to hide the window during screen grab.
+The hide/show cycle unmaps and re-maps the GDK surface. After re-map,
+GTK4's frame-clock scheduling may not resume delivering frames to the
+window until some internal threshold is met, causing `queue_draw()` calls
+to be silently dropped or deferred indefinitely.
+
+**Why it works in Lenzu:** The production `lenzu` app avoids
+`set_visible(false/true)` during capture — it moves the window
+off-screen (via x11rb `configure_window`) so the GDK surface is never
+unmapped. `queue_draw()` always hits a live, mapped surface and the frame
+clock keeps ticking.
+
+**Investigation starting points:**
+- Replace `set_visible(false/true)` with `move_window(-2000, -2000)` /
+  `move_window(win_x, win_y)` and add an `is_capturing` guard in the poll
+  timer to prevent the continuous `move_window` loop from overriding the
+  off-screen position.
+- Alternatively, call `window.queue_draw()` AND `area.queue_draw()` (the
+  DrawingArea child) after `set_visible(true)` — GTK4 may not propagate
+  invalidation to children on re-map.
+
+**Tracked in code:** `TODO(proto)` comment in `prototypes/jp_ocr_app/src/main.rs`
+next to the `window_anim.queue_draw()` call.
+
+---
+
 *This document is written from the `lenzu-prototypes` workspace. Updates flow
 one-way: findings here are appended to this file, then cross-referenced in the
 main repo's `lenzu-desktop-issues.md` as needed.*
