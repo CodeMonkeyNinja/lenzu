@@ -51,14 +51,234 @@ x11rb connection (singleton via OnceLock)
   └── send_event() → stacking (replaces GdkToplevel)
 ```
 
-For `jp_ocr_app`, the X11 connection is initialized once lazily and also
-discovers the window's own XID by scanning `_NET_WM_PID` on the root window's
-children. For `x11-gtk-lens-test`, the XID is obtained from
-`gdk4_x11::X11Surface::xid()` after `window.present()`.
+The window XID is obtained from `gdk4_x11::X11Surface::xid()` after
+`window.present()`. An earlier approach using `_NET_WM_PID` scanning of root
+window children proved unreliable (see §5).
 
 ---
 
-## 2. Workspace Dependency Graph (Post-Migration)
+## 2. Pitfalls & Lessons Learned (Post-Migration Runtime Issues)
+
+Even after the code compiles cleanly, several runtime issues were discovered
+that required additional fixes:
+
+### 2a. Window XID Discovery: `X11Surface::xid()` vs PID Scanning
+
+**Wrong approach:** Scan root window children matching `_NET_WM_PID`:
+
+```rust
+// DON'T — fragile, fails in practice
+let tree = conn.query_tree(root).ok()?.reply().ok()?;
+for &child in &tree.children {
+    let pid = get_property(child, "_NET_WM_PID");
+    if pid == std::process::id() { /* found it */ }
+}
+```
+
+**Why it fails:**
+- The GTK4 window may not be mapped yet when the first poll fires.
+- Window managers (especially xfwm4, mutter) reparent the client window under
+  a frame window that is NOT a direct child of root — the scan never finds it.
+- `_NET_WM_PID` is not always set immediately after `present()`.
+
+**Correct approach:** Use GDK4's own X11 surface, always available after
+`present()`:
+
+```rust
+// DO — works every time on X11
+let surface = window.surface()?;
+let x11_surface = surface.downcast::<gdk4_x11::X11Surface>().ok()?;
+let xid = x11_surface.xid() as u32;   // u64 → u32 for x11rb
+```
+
+**Must call AFTER `window.present()`** — `window.surface()` returns `None` if
+the window is not yet realized.
+
+### 2b. x11rb Connection Init Must Not Panic
+
+**Wrong approach:**
+```rust
+let conn = ONCE.get_or_init(|| RustConnection::connect(None).ok().unwrap());
+//                                                       ^^^^^^^^ PANICS
+```
+
+If `$DISPLAY` is unset or the X server is unreachable, the `.unwrap()` kills
+the entire app. **Always** handle X11 connection failure gracefully:
+
+```rust
+fn init_x11() -> bool {
+    if ONCE.get().is_some() { return true; }
+    if let Ok((conn, _)) = RustConnection::connect(None) {
+        let _ = ONCE.set(conn);
+        true
+    } else {
+        false
+    }
+}
+```
+
+All cursor-tracking and window-management functions should be no-ops when X11
+is unavailable (the app remains functional as a static overlay).
+
+### 2c. `set_window_state` (keep-above) Must Follow `present()`
+
+```rust
+window.present();                    // must be first
+set_window_state(&window);           // window.surface() is now Some
+input_shape_clickthrough(&window);   // same
+```
+
+Calling `set_window_state()` before `present()` silently fails because
+`window.surface()` returns `None`.
+
+### 2d. `surface.set_input_region()` Takes `Option<&Region>`
+
+```rust
+// Correct:
+let region = cairo::Region::create();
+surface.set_input_region(Some(&region));   // takes Option<&Region>
+```
+
+Not `&Region`. The `Option` wrapper was silently wrong in earlier versions.
+
+### 2e. `RefCell` Borrow Must Be Dropped Before Blocking Calls
+
+**Wrong approach — holds mutable borrow across blocking sequence:**
+
+```rust
+// DON'T — RefCell panic when draw/animation callbacks fire during iteration
+let mut s = state.borrow_mut();
+s.is_loading = true;
+window.set_visible(false);
+while glib::MainContext::default().iteration(false) {}  // ← timer/draw callbacks
+std::thread::sleep(Duration::from_millis(400));          //   try to borrow state
+s.pixels = Some(...);
+```
+
+Holding a `RefCell` mutable guard across `glib::MainContext::iteration(false)`
+or `std::thread::sleep()` causes a **panic** when other callbacks (draw function,
+animation timer) try to `borrow()`/`borrow_mut()` the same `RefCell`.
+
+**Correct approach — scope-guard the mutable borrow:**
+
+```rust
+// DO — drop the mutable guard before the blocking sequence
+{
+    let mut s = state.borrow_mut();
+    s.is_loading = true;
+    s.status = "CAPTURING...";
+}
+window.set_visible(false);
+while glib::MainContext::default().iteration(false) {}
+std::thread::sleep(Duration::from_millis(400));
+// re-borrow after blocking
+let mut s = state.borrow_mut();
+s.pixels = Some(...);
+```
+
+Check also with `try_borrow()` / `try_borrow_mut()` for the initial condition
+check rather than calling `borrow_mut()` directly, to avoid panicking if another
+borrow is active.
+
+### 2f. `Session`/Model Loading Must Be Optional
+
+The ONNX detection prototype (`x11-gtk-lens-test`) panicked on startup with
+`.expect("No valid .onnx file found (>1MB)!")` when no model file was in cwd.
+Always make model loading graceful:
+
+```rust
+// DON'T — panics when no .onnx file exists
+let model = Session::builder().unwrap()
+    .commit_from_file(&model_path).unwrap();
+
+// DO — model is Option<Session>
+let model = fs::read_dir(".")
+    .ok()?
+    .find(|p| p.extension() == Some("onnx"))
+    .and_then(|p| Session::builder().ok()?.commit_from_file(&p).ok());
+```
+
+All inference and detection code should check `if let Some(ref mut m) = model`
+before attempting to run the model.
+
+### 2g. Transparent Lens: Draw Must Clear with RGBA(0,0,0,0) + Operator::Source
+
+**Wrong approach — paints opaque black over the entire lens area:**
+
+```rust
+// DON'T — opaque black fills the window, hides transparent CSS background
+cr.set_source_rgb(0.0, 0.0, 0.0);
+cr.paint().ok();
+```
+
+The CSS `window { background: transparent; }` alone is insufficient — the
+DrawingArea's `draw_func` paints over it with opaque black, blocking any
+transparency.
+
+**Correct approach — clear with fully transparent colour using Source operator:**
+
+```rust
+// DO — transparent clear, then switch back to Over for overlays
+cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
+cr.set_operator(cairo::Operator::Source);
+cr.paint().ok();
+cr.set_operator(cairo::Operator::Over);
+```
+
+The `Operator::Source` replaces the existing pixels entirely (including the
+window's transparent background) with the source colour. Switching back to
+`Operator::Over` after the clear ensures subsequent drawing operations
+composite correctly.
+
+This pattern is used in `jp_ocr_app` and was applied to `x11-gtk-lens-test`
+in the same fix.
+
+---
+
+### 2h. SCIM Stderr Noise — GTK4 GDK Auto-Launches Broken SCIM
+
+Both `jp_ocr_app` and `x11-gtk-lens-test` print to stderr on every launch:
+
+```
+Loading socket Config module ...
+Creating backend ...
+Loading x11 FrontEnd module ...
+Failed to load x11 FrontEnd module.
+```
+
+**Source:** These messages come from **SCIM** (Smart Common Input Method), a CJK
+input method framework. GTK4's GDK X11 backend auto-detects SCIM and forks a
+`scim-launcher -d -c socket -e socket -f x11 --no-stay -d` child process.
+
+The launch sequence (observed via strace):
+1. GTK4 GDK X11 calls `scim -h` to check availability.
+2. `scim-im-agent` is spawned.
+3. It launches `scim-launcher -f x11`, which fails.
+
+**Why it fails:** The X11 frontend module at
+`/usr/lib/x86_64-linux-gnu/scim-1.0/1.4.0/FrontEnd/x11.so` loads (all shared
+library deps resolve) but internal initialization fails. SCIM also looks for
+`/etc/scim/global` and `~/.scim/global` config files, which don't exist in
+stock installs.
+
+**Why `GTK_IM_MODULE=` doesn't help:** The SCIM launch is built into GDK's X11
+backend source code, independent of GTK's IM module system. Neither
+`GTK_IM_MODULE=ibus` nor `GTK_IM_MODULE=` empty suppresses it. An already-
+running SCIM daemon (launched at session login via `scim-launcher -c simple
+-e all -f socket`) coexists but doesn't affect the GTK4 child process.
+
+**Impact:** Cosmetic only — the messages go to stderr from the forked child
+process. Our GTK app runs unaffected. No functionality is degraded.
+
+**To suppress:**
+- Uninstall SCIM (`sudo apt remove scim`), or
+- Redirect stderr (`cargo run -p jp_ocr_app 2>/dev/null`), or
+- Create `/etc/scim/global` or `~/.scim/global` config (SCIM repeatedly looks
+  for these; missing config may trigger the init failure).
+
+---
+
+## 3. Workspace Dependency Graph (Post-Migration)
 
 ```
 lenzu-prototypes workspace (all GTK4)
@@ -82,7 +302,7 @@ eliminating the unsound dual-glib state.
 
 ---
 
-## 3. Dependabot PR Situation (as of 2026-06-20)
+## 4. Dependabot PR Situation (as of 2026-06-20)
 
 **5 open PRs**, all dependabot bumps, all failing `review / review` check:
 
@@ -103,7 +323,7 @@ uses gtk4 0.11.x / glib 0.22.x ecosystem. These PRs only affect `Cargo.lock`.
 
 ---
 
-## 4. Decision Log
+## 5. Decision Log
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
@@ -113,6 +333,12 @@ uses gtk4 0.11.x / glib 0.22.x ecosystem. These PRs only affect `Cargo.lock`.
 | 2026-06-20 | Shared docs convention established | `lenzu/docs/prototypes-desktop-issues.md` (from here) + `lenzu/docs/lenzu-desktop-issues.md` (from main repo) |
 | 2026-06-21 | **GTK3→GTK4 migration completed** | All 4 GTK members ported to gtk4-rs 0.11.x / glib 0.22.x; x11rb replaces removed GDK APIs for X11-specific window management; both lens prototypes compile and link cleanly |
 | 2026-06-21 | GdkScreen workaround finalized | x11rb `query_pointer()` + `_NET_WM_STATE` + `configure_window()` — stable, X11-only, no GDK dependency for window management |
+| 2026-06-21 | **PID scanning for XID abandoned** | `_NET_WM_PID` on root window children is unreliable (WM reparenting, unmapped windows, timing). Use `gdk4_x11::X11Surface::xid()` after `present()` instead. |
+| 2026-06-21 | **x11rb connection must init gracefully** | `get_or_init(|| connect(None).unwrap())` panics on missing `$DISPLAY`. Use manual `set()` with `bool` return instead. |
+| 2026-06-21 | **`set_window_state`/`surface()` requires realization** | `window.surface()` returns `None` before `window.present()`. All surface/XID access must happen after. |
+| 2026-06-21 | **Unit tests added for known runtime panics** | 9 tests across `jp_ocr_app` (4) and `x11-gtk-lens-test` (5) catch RefCell borrow-across-blocking panics, Pixbuf creation, model-loading graceful failure, and try_borrow pattern — now verifiable in `cargo test` without X11 display. |
+| 2026-06-21 | **`x11-gtk-lens-test` transparent draw fix** | Draw function used `cr.set_source_rgb(0,0,0)` → `paint()`, filling the lens with opaque black and hiding the transparent CSS window background. Changed to `rgba(0,0,0,0)` + `Operator::Source` + switch back to `Over` (matching `jp_ocr_app` pattern). |
+| 2026-06-21 | **SCIM stderr noise identified** | Both lens apps print SCIM init errors on every launch. Traced to GTK4 GDK X11 backend auto-forking `scim-launcher -f x11`. Cosmetic only — app unaffected. `GTK_IM_MODULE` has no effect; suppress via stderr redirect or `apt remove scim`. Documented in §2h. |
 
 ---
 
