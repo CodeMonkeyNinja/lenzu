@@ -1,5 +1,9 @@
 # Lens Window — Design Invariants
 
+> **GTK3→GTK4 migration reference consolidated at the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations).**
+> This document keeps per-invariant GTK3/4 implementation notes as architectural
+> documentation; the standalone migration reference lives there.
+
 This document captures the design constraints for the transparent lens overlay window.
 These invariants are **toolkit-agnostic** — they must hold regardless of whether the
 underlying UI toolkit is GTK3, GTK4, or anything else.  The "GTK3" and "GTK4" sections
@@ -156,27 +160,14 @@ having keyboard focus.
   After the user focuses Brave/Chrome to read Japanese text, key events stop arriving
   at the lens window entirely.
 
-**Solution — XQueryKeymap polled in the same 16ms timer:**
+**Solution — X11 passive key grabs (replaces previous `XQueryKeymap` polling):**
 
-```rust
-fn key_pressed(keycode: u8) -> bool {
-    let reply = conn.query_keymap()?.reply()?;
-    (reply.keys[(keycode / 8) as usize] & (1u8 << (keycode % 8))) != 0
-}
-// Standard Linux/evdev X11 keycodes (stable across keyboard layouts):
-const KEYCODE_ESC: u8 = 9;   // Escape (kernel 1  + 8)
-const KEYCODE_H:   u8 = 43;  // H key  (kernel 35 + 8)
-const KEYCODE_TAB: u8 = 23;  // Tab    (kernel 15 + 8)
-```
+X11 passive key grabs (`XGrabKey`) on the root window deliver `KeyPress` events
+to our x11rb connection even without WM focus. Events are polled from the connection
+buffer in the 16ms timer with rising-edge detection and 200ms debounce. Zero round-trip
+overhead compared to the previous `query_keymap()` polling.
 
-Debounce by tracking `{key}_was_down` booleans in the timer closure and acting only on
-`key_down && !key_was_down` (rising edge).
-
-**GTK3 equivalent:**  
-GTK3 had a global key event filter (`gtk_key_snooper_install`, deprecated in 3.x) or
-could use a GDK event filter on the root window.  Either way, the timer-based
-`XQueryKeymap` approach works on both GTK3 and GTK4 and is the preferred path going
-forward because it is independent of focus and toolkit version.
+See the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations) § Key Combo Architecture for full details.
 
 ---
 
@@ -207,5 +198,7 @@ position for one frame.
 | Click-through | `input_shape_combine_region(None)` | `surface.set_input_region(Some(&empty_region))` |
 | Never unmap | `move_window(-10000,-10000)` + `conn.flush()` | same |
 | Pointer state | `query_pointer` polled in 16ms timer | same |
-| Key combos | GDK root event filter or `query_keymap` | `query_keymap` polled in 16ms timer (GDK EventController unreliable without focus) |
+| Key combos | GDK root event filter or `query_keymap` | X11 passive key grabs (`XGrabKey`), polled from x11rb connection |
 | Init order | set hints → `show()` | `realize()` → set attrs → `present()` |
+
+**Full GTK3→GTK4 migration reference:** [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations)

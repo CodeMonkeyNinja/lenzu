@@ -57,19 +57,18 @@ is impossible without breaking the build.
 
 ## 3b. GTK4 Migration — Prototypes Succeeded
 
-The lenzu-prototypes workspace has completed a GTK3→GTK4 migration (gtk4-rs 0.11.x)
-for all its GTK members. Key workarounds documented in
-[prototypes-desktop-issues.md](prototypes-desktop-issues.md) §1:
+**Consolidated into the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations)** — all workaround tables,
+guide cross-references, and migration decisions for the prototype workspace now live
+there. See the following sections:
 
-| Problem | Workaround |
-|---------|------------|
-| `gdk::Screen::default()` removed | x11rb `query_pointer()` on root window |
-| `window.move_()` removed | x11rb `configure_window()` |
-| `input_shape_combine_region()` removed | `surface.set_input_region(Some(&region))` |
-| `set_keep_above(true)` removed | x11rb `_NET_WM_STATE` ClientMessage |
-| `connect_draw` → raw Cairo | `WidgetExt::snapshot()` with `gtk::Snapshot` |
-| `pangocairo::show_layout()` moved | `pangocairo::functions::show_layout()` |
-| `gdk::keys::constants` private | `gdk::Key::Escape` directly |
+| Topic | `GTK-Migrations.md` section |
+|-------|---------------------------|
+| Full workaround table (22 rows) | § Full Workaround Table |
+| Official guide cross-reference | § Guide Cross-Reference |
+| Key combo architecture | § Key Combo Architecture |
+| Summary: GTK3 vs GTK4 per invariant | § Summary Table |
+| Architectural decisions timeline | § Architectural Decisions |
+| Workspace dependency graph | § Workspace Dependency Graph |
 
 A test crate is on the `feat/gtk4-upgrade-test` branch at
 [`prototypes/x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test) for prototyping the main lenzu crate's migration. *(was `gtk4-lens-test` — renamed)*
@@ -78,24 +77,11 @@ A test crate is on the `feat/gtk4-upgrade-test` branch at
 
 ## 4. Migration Surface Area
 
+**Consolidated into the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations)** — see § Main Crate Migration
+Surface Area for the full GTK3→GTK4 mapping table.
+
 Only one file uses the GTK family: **`lenzu/src/main.rs`** (~180 of 1536 lines).
 All other 14 Rust source files are unaffected.
-
-### If migrating to GTK4 (`gtk4` crate)
-
-Would require rewriting the GTK3-specific patterns in main.rs:
-
-| Current (gtk-rs 0.18 GTK3) | Notes for GTK4 |
-|---|---|
-| `Window::new(Toplevel)` | `ApplicationWindow` or `Window` + `Application` pattern |
-| `Screen::rgba_visual()`, `set_visual()` | `gtk4::WidgetExt` handles transparency differently |
-| `connect_key_press_event` → `Propagation` | `EventControllerKey` instead of signal per-widget |
-| `connect_draw` → `cairo::Context` | `WidgetExt::snapshot()` with `gtk::Snapshot` (no raw Cairo) |
-| `input_shape_combine_region()` | GTK4 `WidgetExt::set_size_request()` + compositor-only |
-| `gdk::Display::default_seat()` | Different seat/pointer API |
-| `cairo::Region::create()` | Changed to `cairo::Region::new()` (minor) |
-| `pangocairo::show_layout()` | Still works in 0.22 (unchanged) |
-| `gtk::events_pending()` / `main_iteration()` | Replaced by async/event-loop patterns |
 
 ### Alternative: Replace GTK with winit + cairo
 

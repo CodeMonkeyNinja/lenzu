@@ -9,53 +9,18 @@ transparent overlay windows, X11 pointer tracking, and related desktop issues.
 
 ## 1. GTK3→GTK4 Migration — Complete
 
-**Status as of 2026-06-21:** All GTK3 workspace members have been ported to GTK4
-(gtk4-rs 0.11.x / glib 0.22.x). The workspace is now fully GTK4.
+**This section has been consolidated into the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations).**
+All workaround tables, official guide cross-references, and migration architectural
+decisions now live there.
 
-**Members migrated:**
-- [`jp_ocr_app`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/jp_ocr_app) (was GTK3 0.18.2) → GTK4 0.11.3, with x11rb pointer tracking
-- [`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test) (was [`x11-gtk3-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk3-lens-test), GTK3 0.18.2) → GTK4 0.11.3
-- [`gtk4_dialogbox_test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/gtk4_dialogbox_test) (was GTK4 0.8.1) → 0.11.3
-- [`gtk_gdk_test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/gtk_gdk_test) (was GTK4 0.8.1) → 0.11.3
-
-### Key Workarounds Used
-
-| Problem | Workaround |
-|---------|------------|
-| `gdk::Screen::default()` removed — no root window for pointer tracking | Use `x11rb::query_pointer()` on root window directly |
-| `surface.move_to()` not exposed in gtk4-rs 0.11 | Use x11rb `configure_window()` with `ConfigureWindowAux::new().x(y).y(y)` |
-| `surface.input_shape_combine_region()` not exposed | Use `surface.set_input_region(Some(&region))` with empty `Region` |
-| `window.set_keep_above(true)` removed | Use x11rb `_NET_WM_STATE` ClientMessage **only for WM-managed windows**; with `override_redirect=1` use `ConfigureWindowAux::stack_mode(StackMode::ABOVE)` directly |
-| GTK3 `WindowType::Popup` (free `override_redirect`) has no GTK4 equivalent | Call `change_window_attributes(xid, ChangeWindowAttributesAux::new().override_redirect(1u32))` via x11rb **before** `present()`; this is required or WMs silently reject `configure_window(-10000,-10000)` and the window stays visible |
-| `EventControllerKey` only fires when window has WM focus; `override_redirect` windows never get WM focus | Poll keyboard state with `conn.query_keymap()` in the 16ms timer; track `{key}_was_down` booleans for rising-edge detection |
-| `gdk::keys::constants` module is private | Use `gdk::Key::Escape` directly |
-| `pangocairo::show_layout()` not at crate root | Use `pangocairo::functions::show_layout()` |
-| `gdk_pixbuf::CairoContextExt` not at crate root | Use `gdk_pixbuf::prelude::*` and call `cr.set_source_pixbuf()` as trait method |
-| `style_context().add_provider()` deprecated since GTK4 4.10 | Use `gtk4::style_context_add_provider_for_display()` (raw FFI) |
-| `window.display()` ambiguous (`RootExt` vs `WidgetExt`) | Use `gtk4::prelude::RootExt::display(&window)` explicitly |
-| `OnceLock::get_or_try_init()` unstable | Use manual `set()` + `get()` pattern |
-| glib `clone!(@strong/@weak)` syntax removed | Use `clone!(#[strong]/#[weak])` attribute syntax in glib 0.22 |
-| `X11Surface::xid()` returns `u64`, x11rb expects `u32` | Cast: `x11_surface.xid() as u32` |
-| `cairo::Region::create()` returns `Region` not `Option` | Assign directly, no `if let Some` needed |
-| `window.show()` deprecated | Use `window.present()` |
-| `configure_window` API: x11rb 0.13 `ClientMessageEvent::new()` | Takes 4 args (format, window, atom, ClientMessageData), not 8 |
-| `KeyButMask::BUTTON_1` renamed | Use `KeyButMask::BUTTON1` (no underscore) |
-
-### X11 Window Management Architecture
-
-Both lens prototypes use this pattern for X11-specific features:
-
-```
-x11rb connection (singleton via OnceLock)
-  ├── query_pointer() → cursor tracking (replaces GdkScreen)
-  ├── configure_window() → positioning (replaces surface.move_to())
-  ├── _NET_WM_STATE → keep-above (replaces set_keep_above())
-  └── send_event() → stacking (replaces GdkToplevel)
-```
-
-The window XID is obtained from `gdk4_x11::X11Surface::xid()` after
-`window.present()`. An earlier approach using `_NET_WM_PID` scanning of root
-window children proved unreliable (see §5).
+| Migration topic | Location |
+|-----------------|----------|
+| Full workaround table (22 rows) | `GTK-Migrations.md` § Workaround Table |
+| Official guide cross-reference (14 rows) | `GTK-Migrations.md` § Guide Cross-Reference |
+| Key combo architecture (Invariant 5) | `GTK-Migrations.md` § Key Combo Architecture |
+| Summary: GTK3 vs GTK4 per invariant | `GTK-Migrations.md` § Summary Table |
+| Architectural decisions timeline | `GTK-Migrations.md` § Architectural Decisions |
+| Workspace dependency graph | `GTK-Migrations.md` § Workspace Dependency Graph |
 
 ---
 
@@ -329,12 +294,10 @@ uses gtk4 0.11.x / glib 0.22.x ecosystem. These PRs only affect `Cargo.lock`.
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| Pre-2026-04 | GTK4 evaluated and rejected | graphene/gobject dep complexity, API churn, build failures |
+| Pre-2026-04 | GTK4 evaluated and rejected — **moved to** [GTK-Migrations wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations) | graphene/gobject dep complexity, API churn, build failures |
 | 2026-04 | Electron for HUD (not GTK) | X11 transparency works, Web UI flexibility |
-| 2026-06-20 | GTK3 lens prototypes kept on 0.18.x | GdkScreen removal blocks GTK4 migration; GTK3 works for current needs |
+| 2026-06-20 | GTK4 migration issues — **moved to** [GTK-Migrations wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations) | All workaround tables, cross-references, and architectural decisions consolidated there |
 | 2026-06-20 | Shared docs convention established | `lenzu/docs/prototypes-desktop-issues.md` (from here) + `lenzu/docs/lenzu-desktop-issues.md` (from main repo) |
-| 2026-06-21 | **GTK3→GTK4 migration completed** | All 4 GTK members ported to gtk4-rs 0.11.x / glib 0.22.x; x11rb replaces removed GDK APIs for X11-specific window management; both lens prototypes compile and link cleanly |
-| 2026-06-21 | GdkScreen workaround finalized | x11rb `query_pointer()` + `_NET_WM_STATE` + `configure_window()` — stable, X11-only, no GDK dependency for window management |
 | 2026-06-21 | **PID scanning for XID abandoned** | `_NET_WM_PID` on root window children is unreliable (WM reparenting, unmapped windows, timing). Use `gdk4_x11::X11Surface::xid()` after `present()` instead. |
 | 2026-06-21 | **x11rb connection must init gracefully** | `get_or_init(|| connect(None).unwrap())` panics on missing `$DISPLAY`. Use manual `set()` with `bool` return instead. |
 | 2026-06-21 | **`set_window_state`/`surface()` requires realization** | `window.surface()` returns `None` before `window.present()`. All surface/XID access must happen after. |
