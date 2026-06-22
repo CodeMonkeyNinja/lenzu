@@ -2,7 +2,7 @@
 
 **Install:** grab `lenzu-bundle-X.Y.Z.tar` from the [latest release](https://github.com/CodeMonkeyNinja/lenzu/releases/latest) — quick-start (extract, model installer, `./run.sh`) is on the release page.
 
-**Docs:** [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
+**Docs:** [Wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki) · [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
 
 **Linux only** (X11, GTK3). No Windows or macOS support.  Note that according to [Microsoft WSLG](https://github.com/microsoft/wslg), they claim you can run X11 (and Wayland) on Windows, I've no garauntees, but if they claim it can run [GIMP](https://github.com/GNOME/gimp) (Linux version) on WSLG, I'm sure you can run Lenzu (GIMP is GTK4 now right?)
 
