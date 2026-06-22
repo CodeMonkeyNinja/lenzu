@@ -17,11 +17,11 @@ The key dif:ference from browser extensions like Yomitan/Rikaichan: this operate
 > and any image-based text that browser extensions like Yomitan or
 > Rikaichan can't see (because it's not selectable text).
 
-![beta demo](docs/lenzu-beta-demo.gif)
+![beta demo](https://raw.githubusercontent.com/CodeMonkeyNinja/lenzu.wiki/main/lenzu/lenzu-beta-demo.gif)
 
 **`--furigana_only` mode demo** — MeCab furigana only (no LLM enrichment, no translation), ~5 ms per capture after OCR:
 
-![--furigana_only preview](docs/Lenzu-demo-furigana-only.gif)
+![--furigana_only preview](https://raw.githubusercontent.com/CodeMonkeyNinja/lenzu.wiki/main/lenzu/Lenzu-demo-furigana-only.gif)
 
 _Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the full 3 min 24 s demo with audio, [download the MP4](assets/Lenzu-demo-2026-04-19_17.01.52.mp4)._
 
@@ -29,7 +29,7 @@ _Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the fu
 
 ![English translation result](assets/Screenshot-EN.png)
 
-> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK3** (`gtk-rs` 0.18) on Linux/X11. GTK4 was evaluated and abandoned due to integration complexity — GTK3 provides everything needed and is simpler to build against. See [Technical Design](./docs/technical-design.md) for current architecture.
+> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK3** (`gtk-rs` 0.18) on Linux/X11. GTK4 was evaluated and abandoned due to integration complexity — GTK3 provides everything needed and is simpler to build against. See [Technical Design](https://github.com/CodeMonkeyNinja/lenzu/wiki/lenzu/technical-design) for current architecture.
 
 ## Architecture (Current)
 
@@ -90,7 +90,7 @@ These companion crates were developed as part of this project and are available 
 - [`manga-ocr-rs`](https://crates.io/crates/manga-ocr-rs) — Japanese manga OCR via ViT encoder + BERT decoder (ONNX). Converts image crops to Japanese text.
 - [`mecab-furigana-rs`](https://crates.io/crates/mecab-furigana-rs) — MeCab-based furigana and romaji annotation. Dictionary-accurate readings at ~5 ms per call, with word segmentation and morpheme data.
 
-See [OCR Accuracy Scores](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/docs/scores.md) for unified benchmark results across all engines and prototypes.
+See [OCR Accuracy Scores](https://github.com/CodeMonkeyNinja/lenzu/wiki/lenzu/scores) for unified benchmark results across all engines and prototypes.
 
 ## Libraries & Dependencies
 
@@ -115,9 +115,9 @@ export OPENROUTER_API_KEY=sk-your-key-here
 ./scripts/run.sh
 ```
 
-![Lenzu help screen (Shift+H)](docs/HELP.png)
+![Lenzu help screen (Shift+H)](https://raw.githubusercontent.com/CodeMonkeyNinja/lenzu.wiki/main/lenzu/HELP.png)
 
-See [`lenzu/README.md`](lenzu/README.md) for full configuration reference and controls.
+See [`lenzu/README.md`](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/lenzu/README.md) for full configuration reference and controls.
 
 ## Why Electron for the HUD (and not GTK)?
 
@@ -211,7 +211,7 @@ Tracked in [GitHub Issues](https://github.com/CodeMonkeyNinja/lenzu/issues).
 | GTK3, Cairo, Pango, GLib                                             | LGPL-2.1+ (system packages, dynamically linked)                               |
 | Electron / Chromium                                                  | MIT + BSD variants (see Electron's own license)                               |
 
-Full per-crate and per-dependency attribution is in [`lenzu/NOTICES.md`](lenzu/NOTICES.md) (also accessible in-app via **Shift+H → About**).
+Full per-crate and per-dependency attribution is in [`lenzu/NOTICES.md`](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/lenzu/NOTICES.md) (also accessible in-app via **Shift+H → About**).
 
 ## History
 
