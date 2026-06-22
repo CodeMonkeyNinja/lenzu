@@ -30,19 +30,6 @@
   },
   "license": "MIT",
   "//": "Electron 41.3.0 confirmed working for transparent:true on Linux X11 (re-tested 2026-04-25 against integrated client and standalone HUD demo). The 36-41 transparency regression that previously held us on 35.x has been resolved upstream.",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild"
-    ],
-    "overrides": {
-      "electron": "42.3.3",
-      "tar": "^7.5.11",
-      "@tootallnate/once": "^3.0.1",
-      "tmp": "^0.2.6",
-      "ip-address": "^10.1.1"
-    }
-  },
   "devDependencies": {
     "@types/node": "^25.9.2",
     "electron": "42.3.3",
