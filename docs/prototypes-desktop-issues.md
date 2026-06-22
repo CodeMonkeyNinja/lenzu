@@ -25,7 +25,9 @@ transparent overlay windows, X11 pointer tracking, and related desktop issues.
 | `gdk::Screen::default()` removed — no root window for pointer tracking | Use `x11rb::query_pointer()` on root window directly |
 | `surface.move_to()` not exposed in gtk4-rs 0.11 | Use x11rb `configure_window()` with `ConfigureWindowAux::new().x(y).y(y)` |
 | `surface.input_shape_combine_region()` not exposed | Use `surface.set_input_region(Some(&region))` with empty `Region` |
-| `window.set_keep_above(true)` removed | Use x11rb `_NET_WM_STATE` ClientMessage protocol |
+| `window.set_keep_above(true)` removed | Use x11rb `_NET_WM_STATE` ClientMessage **only for WM-managed windows**; with `override_redirect=1` use `ConfigureWindowAux::stack_mode(StackMode::ABOVE)` directly |
+| GTK3 `WindowType::Popup` (free `override_redirect`) has no GTK4 equivalent | Call `change_window_attributes(xid, ChangeWindowAttributesAux::new().override_redirect(1u32))` via x11rb **before** `present()`; this is required or WMs silently reject `configure_window(-10000,-10000)` and the window stays visible |
+| `EventControllerKey` only fires when window has WM focus; `override_redirect` windows never get WM focus | Poll keyboard state with `conn.query_keymap()` in the 16ms timer; track `{key}_was_down` booleans for rising-edge detection |
 | `gdk::keys::constants` module is private | Use `gdk::Key::Escape` directly |
 | `pangocairo::show_layout()` not at crate root | Use `pangocairo::functions::show_layout()` |
 | `gdk_pixbuf::CairoContextExt` not at crate root | Use `gdk_pixbuf::prelude::*` and call `cr.set_source_pixbuf()` as trait method |

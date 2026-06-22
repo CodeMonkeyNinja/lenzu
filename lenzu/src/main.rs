@@ -1,7 +1,6 @@
 use arboard::Clipboard;
 use async_channel;
 use gdk_pixbuf::prelude::*;
-use gtk4::gdk;
 use gtk4::glib;
 use gtk4::prelude::*;
 use pango;
@@ -17,6 +16,7 @@ extern crate libc;
 use std::time::{Duration, Instant};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::*;
+use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
 
 use isolang::Language;
@@ -38,6 +38,7 @@ fn init_x11() -> bool {
     let root = conn.setup().roots[screen_num].root;
     let _ = ROOT_WINDOW.set(root);
     let _ = X11_CONN.set(conn);
+    setup_key_grabs();
     true
 }
 
@@ -62,6 +63,7 @@ fn move_window(x: i32, y: i32) {
     if let (Some(conn), Some(&xid)) = (x11_conn(), WINDOW_XID.get()) {
         let aux = ConfigureWindowAux::new().x(x).y(y);
         let _ = conn.configure_window(xid, &aux);
+        let _ = conn.flush();
     }
 }
 
@@ -73,25 +75,78 @@ fn screen_height() -> i32 {
 
 fn set_window_state(window: &gtk4::ApplicationWindow) {
     let conn = match x11_conn() { Some(c) => c, None => return };
-    let root = match root_window() { Some(r) => r, None => return };
     let surface = match window.surface() { Some(s) => s, None => return };
     let x11_surface = match surface.downcast::<gdk4_x11::X11Surface>() {
         Ok(s) => s,
         Err(_) => return,
     };
     let xid = x11_surface.xid() as u32;
+    eprintln!("[DBG] WINDOW_XID set to 0x{xid:x}");
     let _ = WINDOW_XID.set(xid);
-    let net_wm_state = match conn.intern_atom(false, b"_NET_WM_STATE").ok().and_then(|c| c.reply().ok()) {
-        Some(r) => r.atom, None => return,
-    };
-    let above = match conn.intern_atom(false, b"_NET_WM_STATE_ABOVE").ok().and_then(|c| c.reply().ok()) {
-        Some(r) => r.atom, None => return,
-    };
-    let data: ClientMessageData = [1u32, above, 0, 0, 0].into();
-    let msg = ClientMessageEvent::new(32, xid, net_wm_state, data);
-    let _ = conn.send_event(false, root, EventMask::SUBSTRUCTURE_NOTIFY | EventMask::SUBSTRUCTURE_REDIRECT, msg);
-    let aux = ConfigureWindowAux::new().stack_mode(StackMode::ABOVE);
+    // Bypass the WM so configure_window(-10000,-10000) is honored.
+    // Without override_redirect, WMs silently reject off-screen ConfigureRequests.
+    let cwa = ChangeWindowAttributesAux::new().override_redirect(1u32);
+    let _ = conn.change_window_attributes(xid, &cwa);
+    // Start off-screen, pin above all other windows.
+    let aux = ConfigureWindowAux::new()
+        .x(-10000)
+        .y(-10000)
+        .stack_mode(StackMode::ABOVE);
     let _ = conn.configure_window(xid, &aux);
+    let _ = conn.flush();
+}
+
+const KEYCODE_ESC: u8 = 9;
+const KEYCODE_H: u8 = 43;
+const KEYCODE_TAB: u8 = 23;
+
+/// Register passive X11 key grabs on the root window so KeyPress events
+/// for our combos arrive on our x11rb connection even when the lens window
+/// has no WM focus (override_redirect windows never get focus from the WM).
+/// This replaces query_keymap() polling — event-driven, no polling overhead.
+fn setup_key_grabs() -> bool {
+    let conn = match x11_conn() { Some(c) => c, None => return false };
+    let root = match root_window() { Some(r) => r, None => return false };
+
+    // Lock modifiers: none, CapsLock (LOCK), NumLock (M2), and both combined.
+    // Must register each combo with every combination so the grab fires
+    // regardless of lock state.
+    let lock_bits: [u16; 4] = [0, u16::from(ModMask::LOCK), u16::from(ModMask::M2),
+        u16::from(ModMask::LOCK) | u16::from(ModMask::M2)];
+    let shift_bits = u16::from(ModMask::SHIFT);
+
+    for &lock in &lock_bits {
+        // ESC alone (no modifiers besides lock keys)
+        let _ = conn.grab_key(false, root, ModMask::from(lock), KEYCODE_ESC, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+ESC
+        let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_ESC, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+H
+        let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_H, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+Tab
+        let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_TAB, GrabMode::ASYNC, GrabMode::ASYNC);
+    }
+    let _ = conn.flush();
+    true
+}
+
+/// Poll our x11rb connection for pending KeyPress events from passive grabs.
+/// Returns (keycode, state) for each event received since the last poll.
+/// Non-blocking — returns empty vec if no events pending.
+fn poll_key_events() -> Vec<(u8, u16)> {
+    let conn = match x11_conn() { Some(c) => c, None => return vec![] };
+    let mut events = vec![];
+    loop {
+        let ev = match conn.poll_for_event() {
+            Ok(Some(e)) => e,
+            Ok(None) => break,
+            Err(_) => break,
+        };
+        match ev {
+            Event::KeyPress(ke) => events.push((ke.detail, ke.state.bits())),
+            _ => {},
+        }
+    }
+    events
 }
 
 fn input_shape_clickthrough(window: &gtk4::ApplicationWindow) {
@@ -688,59 +743,9 @@ fn main() -> glib::ExitCode {
         let display = gtk4::prelude::RootExt::display(&window);
         gtk4::style_context_add_provider_for_display(&display, &css, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
-        let cfg_key = cfg.clone();
-        let state_key = state.clone();
-        let window_key = window.clone();
-        let app_key = app_ref.clone();
-        let key_controller = gtk4::EventControllerKey::new();
-        key_controller.connect_key_pressed(move |_, keyval, _, modifiers| {
-            // Plain ESC → cancel in-flight OCR. Shift+ESC → quit.
-            if keyval == gdk::Key::Escape {
-                if modifiers.contains(gdk::ModifierType::SHIFT_MASK) {
-                    kill_server(&mut state_key.borrow_mut().server_process, &cfg_key);
-                    app_key.quit();
-                    return glib::Propagation::Proceed;
-                }
-                let mut s = state_key.borrow_mut();
-                s.cancel_inflight("user-cancel");
-                s.is_loading = false;
-                s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
-                window_key.queue_draw();
-                return glib::Propagation::Proceed;
-            }
-
-            // Shift+H → Japanese help dialog
-            if (keyval == gdk::Key::h || keyval == gdk::Key::H)
-                && modifiers.contains(gdk::ModifierType::SHIFT_MASK)
-            {
-                {
-                    let mut s = state_key.borrow_mut();
-                    s.cancel_inflight("help-dialog");
-                    s.is_loading = false;
-                }
-                show_help_dialog(&window_key);
-                return glib::Propagation::Proceed;
-            }
-
-            // Shift+Tab → toggle translation direction (swap src ↔ dest)
-            if keyval == gdk::Key::ISO_Left_Tab
-                || (keyval == gdk::Key::Tab && modifiers.contains(gdk::ModifierType::SHIFT_MASK))
-            {
-                let mut s = state_key.borrow_mut();
-                s.cancel_inflight("direction-toggle");
-                s.is_loading = false;
-                // Language is Copy — read both then assign back to avoid split-borrow error
-                let (new_src, new_dest) = (s.config.translate_dest, s.config.translate_src);
-                s.config.translate_src = new_src;
-                s.config.translate_dest = new_dest;
-                s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
-                window_key.queue_draw();
-                return glib::Propagation::Proceed;
-            }
-
-            glib::Propagation::Proceed
-        });
-        window.add_controller(key_controller);
+        // Key combos (ESC, Shift+ESC, Shift+H, Shift+Tab) are handled via X11
+        // passive key grabs (setup_key_grabs) and polled in the 16ms timer so
+        // they work even when the window has no WM focus (override_redirect).
 
         let cfg_del = cfg.clone();
         let state_del = state.clone();
@@ -956,10 +961,20 @@ fn main() -> glib::ExitCode {
 
         let window_main = window.clone();
         let state_main = state.clone();
+        let app_main = app_ref.clone();
+        let mut esc_was_down = false;
+        let mut h_was_down = false;
+        let mut tab_was_down = false;
+        let mut esc_last_action = Instant::now();
+        let mut h_last_action = Instant::now();
+        let mut tab_last_action = Instant::now();
         glib::timeout_add_local(Duration::from_millis(16), move || {
             let (x, y, mask) = match pointer_position() {
                 Some(p) => p,
-                None => return glib::ControlFlow::Continue,
+                None => {
+                    eprintln!("[DBG] pointer_position() returned None — X11 conn or root window missing");
+                    return glib::ControlFlow::Continue;
+                }
             };
 
             let s_conf = state_main.borrow().config.clone();
@@ -970,6 +985,10 @@ fn main() -> glib::ExitCode {
             let btn1_bits = KeyButMask::BUTTON1.bits();
             let ctrl_bits = KeyButMask::CONTROL.bits();
             let is_shift_click = (mask & shift_bits) != 0 && (mask & btn1_bits) != 0;
+            if mask != 0 {
+                eprintln!("[DBG] mask=0x{mask:04x} shift={} btn1={} is_shift_click={is_shift_click}",
+                    (mask & shift_bits) != 0, (mask & btn1_bits) != 0);
+            }
             let force_remote = is_shift_click && (mask & ctrl_bits) != 0;
 
             // Show the lens only while Shift is held (preview), while OCR is running,
@@ -985,6 +1004,66 @@ fn main() -> glib::ExitCode {
                 window_main.queue_draw();
             } else {
                 move_window(-10000, -10000);
+            }
+
+            // ── Key combo detection via X11 passive key grabs ────────────────────
+            // Passive grabs deliver KeyPress events on our x11rb connection even
+            // when the lens window has no WM focus (override_redirect bypasses WM).
+            // Rising-edge detection: act on first KeyPress per press-release cycle.
+            // 200ms debounce prevents auto-repeat double-trigger.
+            {
+                let key_events = poll_key_events();
+                let mut esc_in_events = false;
+                let mut h_in_events = false;
+                let mut tab_in_events = false;
+                let mut esc_state = 0u16;
+                for &(kc, state) in &key_events {
+                    if kc == KEYCODE_ESC { esc_in_events = true; esc_state = state; }
+                    if kc == KEYCODE_H { h_in_events = true; }
+                    if kc == KEYCODE_TAB { tab_in_events = true; }
+                }
+
+                if esc_in_events && !esc_was_down && esc_last_action.elapsed() > Duration::from_millis(200) {
+                    esc_last_action = Instant::now();
+                    if (esc_state & KeyButMask::SHIFT.bits()) != 0 {
+                        let mut s = state_main.borrow_mut();
+                        let cfg = s.config.clone();
+                        kill_server(&mut s.server_process, &cfg);
+                        drop(s);
+                        app_main.quit();
+                        return glib::ControlFlow::Break;
+                    }
+                    let mut s = state_main.borrow_mut();
+                    s.cancel_inflight("user-cancel");
+                    s.is_loading = false;
+                    s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
+                    drop(s);
+                    window_main.queue_draw();
+                }
+                if h_in_events && !h_was_down && h_last_action.elapsed() > Duration::from_millis(200) {
+                    h_last_action = Instant::now();
+                    {
+                        let mut s = state_main.borrow_mut();
+                        s.cancel_inflight("help-dialog");
+                        s.is_loading = false;
+                    }
+                    show_help_dialog(&window_main);
+                }
+                if tab_in_events && !tab_was_down && tab_last_action.elapsed() > Duration::from_millis(200) {
+                    tab_last_action = Instant::now();
+                    let mut s = state_main.borrow_mut();
+                    s.cancel_inflight("direction-toggle");
+                    s.is_loading = false;
+                    let (new_src, new_dest) = (s.config.translate_dest, s.config.translate_src);
+                    s.config.translate_src = new_src;
+                    s.config.translate_dest = new_dest;
+                    s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
+                    drop(s);
+                    window_main.queue_draw();
+                }
+                esc_was_down = esc_in_events;
+                h_was_down   = h_in_events;
+                tab_was_down = tab_in_events;
             }
 
             // ── HUD auto-reposition ───────────────────────────────────────────────
@@ -1604,9 +1683,12 @@ fn main() -> glib::ExitCode {
         glib::ControlFlow::Continue
     });
 
-        window.present();
+        // realize() creates the GDK surface (and thus the X11 XID) without
+        // mapping the window, so we can set override_redirect before present().
+        gtk4::prelude::WidgetExt::realize(&window);
         set_window_state(&window);
         input_shape_clickthrough(&window);
+        window.present();
     }); // close connect_activate
     let exit_code = app.run();
     let _ = std::fs::remove_file(PID_FILE);
