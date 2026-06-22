@@ -9,7 +9,14 @@ Centralize all Lenzu documentation into the GitHub Wiki for discoverability,
 connected linking, and a single source of truth spanning the main product
 (`CodeMonkeyNinja/lenzu`) and prototype research (`HidekiAI/lenzu-prototypes`).
 
-## Directory structure in wiki
+## Important: GitHub Wiki flattens subdirectories
+
+GitHub Wiki ignores directory structure — all pages are served at the root level.
+- `lenzu/technical-design.md` → accessible at `/wiki/technical-design` (NOT `/wiki/lenzu/technical-design`)
+- All sidebar links and internal wiki links must use flat page names (no `lenzu/` prefix)
+- Image raw URLs use the `wiki` path: `https://raw.githubusercontent.com/wiki/{owner}/{repo}/{path-in-wiki-git}`
+
+## Directory structure in wiki (git repo layout — for organization only)
 
 ```
 Home.md                     # landing page (exists)
@@ -18,33 +25,16 @@ Troubleshooting.md          # user-facing (exists)
 _Sidebar.md                 # navigation (new)
 _Footer.md                  # optional
 
-lenzu/
-  technical-design.md
-  technical-design.lens-window.md
-  technical-design.OCR.md
-  technical-design.manga-ocr.md
-  technical-design.sarashina.md
-  technical-design.phase4-predetect.md
-  technical-design.cancel-inflight.md
-  planning.md
-  planning-ollama-to-llamacpp.md
-  planning-codemonkeyninja-extraction.md
-  scores.md
-  model-evaluation.md
-  session-log-2026-04-14.md
-  todo-usability.md
-  grpc_and_effect.md
-  release-procedure.md
-  PR-4-WorkOrder.md
-  lenzu-desktop-issues.md
-  sequence-flow.puml
-  HELP.png
+lenzu/                      # subdir for git organization only — wiki flattens
+  technical-design.md       #  → wiki page: "technical-design"
+  ...
+  HELP.png                  #  → raw: /wiki/CodeMonkeyNinja/lenzu/lenzu/HELP.png
   lenzu-beta-demo.gif
   Lenzu-demo-furigana-only.gif
 
-prototypes/
-  prototypes-desktop-issues.md
-  prototypes-reference.md    # new: cross-reference table from lenzu-prototypes README
+prototypes/                 # subdir for git organization only — wiki flattens
+  prototypes-desktop-issues.md  # → wiki page: "prototypes-desktop-issues"
+  prototypes-reference.md
 ```
 
 ## Phases

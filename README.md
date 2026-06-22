@@ -17,11 +17,11 @@ The key dif:ference from browser extensions like Yomitan/Rikaichan: this operate
 > and any image-based text that browser extensions like Yomitan or
 > Rikaichan can't see (because it's not selectable text).
 
-![beta demo](https://raw.githubusercontent.com/CodeMonkeyNinja/lenzu.wiki/main/lenzu/lenzu-beta-demo.gif)
+![beta demo](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/lenzu-beta-demo.gif)
 
 **`--furigana_only` mode demo** — MeCab furigana only (no LLM enrichment, no translation), ~5 ms per capture after OCR:
 
-![--furigana_only preview](https://raw.githubusercontent.com/CodeMonkeyNinja/lenzu.wiki/main/lenzu/Lenzu-demo-furigana-only.gif)
+![--furigana_only preview](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/Lenzu-demo-furigana-only.gif)
 
 _Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the full 3 min 24 s demo with audio, [download the MP4](assets/Lenzu-demo-2026-04-19_17.01.52.mp4)._
 
@@ -29,7 +29,7 @@ _Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the fu
 
 ![English translation result](assets/Screenshot-EN.png)
 
-> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK3** (`gtk-rs` 0.18) on Linux/X11. GTK4 was evaluated and abandoned due to integration complexity — GTK3 provides everything needed and is simpler to build against. See [Technical Design](https://github.com/CodeMonkeyNinja/lenzu/wiki/lenzu/technical-design) for current architecture.
+> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK3** (`gtk-rs` 0.18) on Linux/X11. GTK4 was evaluated and abandoned due to integration complexity — GTK3 provides everything needed and is simpler to build against. See [Technical Design](https://github.com/CodeMonkeyNinja/lenzu/wiki/technical-design) for current architecture.
 
 ## Architecture (Current)
 
@@ -115,7 +115,7 @@ export OPENROUTER_API_KEY=sk-your-key-here
 ./scripts/run.sh
 ```
 
-![Lenzu help screen (Shift+H)](https://raw.githubusercontent.com/CodeMonkeyNinja/lenzu.wiki/main/lenzu/HELP.png)
+![Lenzu help screen (Shift+H)](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/HELP.png)
 
 See [`lenzu/README.md`](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/lenzu/README.md) for full configuration reference and controls.
 
