@@ -1718,7 +1718,10 @@ fn main() -> glib::ExitCode {
         input_shape_clickthrough(&window);
         window.present();
     }); // close connect_activate
-    let exit_code = app.run();
+    // GTK4's GLib option parser rejects unknown flags.  We've already consumed
+    // all our custom flags above, so only pass argv[0] to GTK.
+    let argv0 = std::env::args().next().unwrap_or_default();
+    let exit_code = app.run_with_args(&[argv0.as_str()]);
     let _ = std::fs::remove_file(PID_FILE);
     exit_code
 }

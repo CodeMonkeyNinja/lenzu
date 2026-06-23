@@ -125,7 +125,7 @@ fi
 export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
 export LINUXDEPLOY_OUTPUT_APP_NAME="lenzu"
 export NO_STRIP=1
-export DEPLOY_GTK_VERSION=3
+export DEPLOY_GTK_VERSION=4
 # Tell linuxdeploy to walk only the Rust binary's deps — the bundled
 # Electron runtime under usr/lib/lenzu-hud/ is self-contained and must
 # NOT have its libs duplicated/relinked.
