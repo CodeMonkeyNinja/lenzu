@@ -115,6 +115,7 @@ fn setup_key_grabs() -> bool {
         u16::from(ModMask::LOCK) | u16::from(ModMask::M2)];
     let shift_bits = u16::from(ModMask::SHIFT);
 
+    let ctrl_bits = u16::from(ModMask::CONTROL);
     for &lock in &lock_bits {
         // ESC alone (no modifiers besides lock keys)
         let _ = conn.grab_key(false, root, ModMask::from(lock), KEYCODE_ESC, GrabMode::ASYNC, GrabMode::ASYNC);
@@ -124,17 +125,33 @@ fn setup_key_grabs() -> bool {
         let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_H, GrabMode::ASYNC, GrabMode::ASYNC);
         // Shift+Tab
         let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_TAB, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+Button1 — consumed by Lenzu, not forwarded to browser
+        let _ = conn.grab_button(false, root,
+            EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE,
+            GrabMode::ASYNC, GrabMode::ASYNC,
+            0u32, 0u32,
+            ButtonIndex::M1,
+            ModMask::from(shift_bits | lock));
+        // Ctrl+Shift+Button1 — force-remote OCR path
+        let _ = conn.grab_button(false, root,
+            EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE,
+            GrabMode::ASYNC, GrabMode::ASYNC,
+            0u32, 0u32,
+            ButtonIndex::M1,
+            ModMask::from(ctrl_bits | shift_bits | lock));
     }
     let _ = conn.flush();
     true
 }
 
-/// Poll our x11rb connection for pending KeyPress events from passive grabs.
-/// Returns (keycode, state) for each event received since the last poll.
-/// Non-blocking — returns empty vec if no events pending.
-fn poll_key_events() -> Vec<(u8, u16)> {
-    let conn = match x11_conn() { Some(c) => c, None => return vec![] };
-    let mut events = vec![];
+/// Poll our x11rb connection for pending events from passive grabs.
+/// Returns (key_events, btn_events) where each entry is (detail, state).
+/// For keys: detail = keycode. For buttons: detail = button number (1 = left).
+/// Non-blocking — returns empty vecs if no events pending.
+fn poll_x11_events() -> (Vec<(u8, u16)>, Vec<(u8, u16)>) {
+    let conn = match x11_conn() { Some(c) => c, None => return (vec![], vec![]) };
+    let mut key_events = vec![];
+    let mut btn_events = vec![];
     loop {
         let ev = match conn.poll_for_event() {
             Ok(Some(e)) => e,
@@ -142,11 +159,12 @@ fn poll_key_events() -> Vec<(u8, u16)> {
             Err(_) => break,
         };
         match ev {
-            Event::KeyPress(ke) => events.push((ke.detail, ke.state.bits())),
+            Event::KeyPress(ke) => key_events.push((ke.detail, ke.state.bits())),
+            Event::ButtonPress(be) => btn_events.push((be.detail, be.state.bits())),
             _ => {},
         }
     }
-    events
+    (key_events, btn_events)
 }
 
 fn input_shape_clickthrough(window: &gtk4::ApplicationWindow) {
@@ -982,14 +1000,7 @@ fn main() -> glib::ExitCode {
             let win_y = y - (s_conf.lens_size / 2);
 
             let shift_bits = KeyButMask::SHIFT.bits();
-            let btn1_bits = KeyButMask::BUTTON1.bits();
             let ctrl_bits = KeyButMask::CONTROL.bits();
-            let is_shift_click = (mask & shift_bits) != 0 && (mask & btn1_bits) != 0;
-            if mask != 0 {
-                eprintln!("[DBG] mask=0x{mask:04x} shift={} btn1={} is_shift_click={is_shift_click}",
-                    (mask & shift_bits) != 0, (mask & btn1_bits) != 0);
-            }
-            let force_remote = is_shift_click && (mask & ctrl_bits) != 0;
 
             // Show the lens only while Shift is held (preview), while OCR is running,
             // or for a configured number of seconds after the last capture.
@@ -1006,13 +1017,13 @@ fn main() -> glib::ExitCode {
                 move_window(-10000, -10000);
             }
 
-            // ── Key combo detection via X11 passive key grabs ────────────────────
-            // Passive grabs deliver KeyPress events on our x11rb connection even
-            // when the lens window has no WM focus (override_redirect bypasses WM).
-            // Rising-edge detection: act on first KeyPress per press-release cycle.
+            // ── Key combo + button detection via X11 passive grabs ───────────────
+            // Passive grabs deliver KeyPress/ButtonPress events on our x11rb connection
+            // even when the lens window has no WM focus (override_redirect bypasses WM).
+            // Rising-edge detection: act on first event per press-release cycle.
             // 200ms debounce prevents auto-repeat double-trigger.
+            let (key_events, btn_events) = poll_x11_events();
             {
-                let key_events = poll_key_events();
                 let mut esc_in_events = false;
                 let mut h_in_events = false;
                 let mut tab_in_events = false;
@@ -1065,6 +1076,17 @@ fn main() -> glib::ExitCode {
                 h_was_down   = h_in_events;
                 tab_was_down = tab_in_events;
             }
+
+            // ── Shift+Click detection via XGrabButton passive grab ────────────────
+            // Shift+Button1 is consumed by our passive grab (browser never sees it).
+            // Detect from ButtonPress events in the x11rb connection buffer, not from
+            // query_pointer mask (which would fire continuously while held down).
+            let is_shift_click = btn_events.iter().any(|&(btn, state)| {
+                btn == 1 && (state & shift_bits) != 0
+            });
+            let force_remote = btn_events.iter().any(|&(btn, state)| {
+                btn == 1 && (state & shift_bits) != 0 && (state & ctrl_bits) != 0
+            });
 
             // ── HUD auto-reposition ───────────────────────────────────────────────
             // Cursor in bottom 30 % → HUD to top; cursor in top 30 % → HUD to bottom.

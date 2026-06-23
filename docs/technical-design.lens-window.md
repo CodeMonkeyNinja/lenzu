@@ -51,31 +51,59 @@ to keep the window above all others.
 
 ---
 
-## Invariant 2 — Click-through (empty input region)
+## Invariant 2 — Click-through for ordinary events; Shift+Button1 consumed by Lenzu
 
 **What must be true:**  
-All pointer events (clicks, motion) pass through the lens window to whatever is below.
-The lens must not capture or consume mouse input.
+- Ordinary pointer events (plain clicks, motion, scroll) pass through the lens window
+  to whatever is below — the user can interact with the application under the lens.
+- `Shift+Button1` (and `Ctrl+Shift+Button1`) are **consumed by Lenzu** via an X11
+  passive button grab (`XGrabButton`) and must **not** reach the underlying application.
 
 **Why:**  
-The user must be able to interact normally with the application under the lens while
-Shift is held.  Shift+Click must reach both the underlying application (to trigger its
-normal action) AND be visible to Lenzu's pointer-state poller.
+The lens is a transparent overlay — it must not block normal mouse use.  But
+`Shift+Button1` is Lenzu's capture hotkey; letting it fall through to the browser
+causes the browser to treat it as a normal Shift+Click (e.g. opens a new tab),
+while Lenzu simultaneously tries to OCR.  The user sees the browser react but no
+OCR result — the UI is confusing.  Consuming the event at the X11 level before it
+reaches the browser removes the ambiguity.
 
-**GTK3 — `input_shape_combine_region`:**  
-`window.input_shape_combine_region(None)` removes the input region, making the whole
-window pass-through.
+**Click-through (base state):**
 
-**GTK4 — `surface.set_input_region`:**  
-`input_shape_combine_region` is not exposed in gtk4-rs.  Use the GDK4 surface directly:
+GTK3: `window.input_shape_combine_region(None)` removes the input region.  
+GTK4: `surface.set_input_region(Some(&empty_cairo_region))` — empty region = no events.
+
+**Consuming Shift+Button1 via XGrabButton (both GTK3 and GTK4):**
+
+Register passive button grabs on the root window, mirroring the `XGrabKey` pattern
+used for keyboard combos (Invariant 5).  Must be registered for all lock-modifier
+combinations (none, CapsLock, NumLock, both) so the grab fires regardless of lock state.
 
 ```rust
-let region = cairo::Region::create(); // empty region
-surface.set_input_region(Some(&region));
+for &lock in &[0u16, LOCK, MOD2, LOCK|MOD2] {
+    conn.grab_button(false, root,
+        EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE,
+        GrabMode::ASYNC, GrabMode::ASYNC,
+        x11rb::NONE, x11rb::NONE,
+        ButtonIndex::M1,
+        ModMask::from(SHIFT | lock));
+    // also Ctrl+Shift+Button1 for force-remote path
+    conn.grab_button(false, root,
+        EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE,
+        GrabMode::ASYNC, GrabMode::ASYNC,
+        x11rb::NONE, x11rb::NONE,
+        ButtonIndex::M1,
+        ModMask::from(CTRL | SHIFT | lock));
+}
+conn.flush();
 ```
 
-Call this after `realize()` (surface must exist) and before or after `present()`;
-both work.  The ShapeInput extension is applied to the X11 window directly.
+`GrabMode::ASYNC` is non-freezing: the X server does not block other events while the
+grab is active, but `ButtonPress` for `Shift+Button1` is delivered **only** to our
+x11rb connection — the browser never sees it.
+
+Detect the event in the 16ms timer by draining `Event::ButtonPress` from the x11rb
+connection buffer alongside `Event::KeyPress`.  This replaces the former
+`query_pointer`-mask-based `is_shift_click` detection.
 
 ---
 
@@ -145,7 +173,7 @@ The `mask` field of `QueryPointerReply` is a `KeyButMask` bitmask:
 
 ---
 
-## Invariant 5 — Key combos via XQueryKeymap, not GDK EventController
+## Invariant 5 — Key combos via X11 passive key grabs, not GDK EventController
 
 **What must be true:**  
 ESC, Shift+ESC, Shift+H, Shift+Tab must be detectable without the lens window
