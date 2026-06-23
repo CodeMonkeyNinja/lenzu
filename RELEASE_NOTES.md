@@ -1,5 +1,12 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.2.0
+
+- **GTK4 migration** — Rust client rewritten against GTK4/GDK4. Resolves spinner freeze and ghost-frame regressions introduced by GTK3's deprecated `WindowType::Popup` on modern compositors.
+- **Shift+Click no longer reaches the browser** — `XGrabButton` passive grab on the X11 root window routes `Shift+Button1` exclusively to Lenzu. Browsers no longer open a new tab or follow a link when triggering an OCR capture.
+- **CLI flags fixed** — `--furigana_only`, `--nomecab_overwrite`, and similar flags no longer produce `Unknown option` errors on startup. GTK4's GLib option parser only sees `argv[0]`; all Lenzu flags are consumed before GTK initialises.
+- **AppImage only** — `.deb` packaging retired. The AppImage is the sole distribution format going forward.
+
 ### What's new in v0.1.16
 
 - **Random startup greeting** — HUD randomly shows either `Hello world, Hello Shiroe!` or `エル・プサイ・コングルゥ EL PSY CONGROO` on launch.
