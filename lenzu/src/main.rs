@@ -1,8 +1,8 @@
 use arboard::Clipboard;
 use async_channel;
-use gdk::prelude::*;
-use gtk::glib;
-use gtk::prelude::*;
+use gdk_pixbuf::prelude::*;
+use gtk4::glib;
+use gtk4::prelude::*;
 use pango;
 use pangocairo;
 use std::cell::RefCell;
@@ -11,10 +11,168 @@ use std::io::Write;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::OnceLock;
 extern crate libc;
 use std::time::{Duration, Instant};
+use x11rb::connection::Connection;
+use x11rb::protocol::xproto::*;
+use x11rb::protocol::Event;
+use x11rb::rust_connection::RustConnection;
 
 use isolang::Language;
+
+// ── X11 singletons (GTK4 has no GdkScreen; use x11rb for pointer/window mgmt) ──
+
+static X11_CONN: OnceLock<RustConnection> = OnceLock::new();
+static WINDOW_XID: OnceLock<u32> = OnceLock::new();
+static ROOT_WINDOW: OnceLock<u32> = OnceLock::new();
+
+fn init_x11() -> bool {
+    if X11_CONN.get().is_some() {
+        return true;
+    }
+    let (conn, screen_num) = match RustConnection::connect(None) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let root = conn.setup().roots[screen_num].root;
+    let _ = ROOT_WINDOW.set(root);
+    let _ = X11_CONN.set(conn);
+    setup_key_grabs();
+    true
+}
+
+fn x11_conn() -> Option<&'static RustConnection> {
+    init_x11();
+    X11_CONN.get()
+}
+
+fn root_window() -> Option<u32> {
+    init_x11();
+    ROOT_WINDOW.get().copied()
+}
+
+fn pointer_position() -> Option<(i32, i32, u16)> {
+    let conn = x11_conn()?;
+    let root = root_window()?;
+    let reply = conn.query_pointer(root).ok()?.reply().ok()?;
+    Some((reply.root_x as i32, reply.root_y as i32, reply.mask.bits()))
+}
+
+fn move_window(x: i32, y: i32) {
+    if let (Some(conn), Some(&xid)) = (x11_conn(), WINDOW_XID.get()) {
+        let aux = ConfigureWindowAux::new().x(x).y(y);
+        let _ = conn.configure_window(xid, &aux);
+        let _ = conn.flush();
+    }
+}
+
+fn screen_height() -> i32 {
+    x11_conn()
+        .and_then(|conn| conn.setup().roots.first().map(|r| r.height_in_pixels as i32))
+        .unwrap_or(1080)
+}
+
+fn set_window_state(window: &gtk4::ApplicationWindow) {
+    let conn = match x11_conn() { Some(c) => c, None => return };
+    let surface = match window.surface() { Some(s) => s, None => return };
+    let x11_surface = match surface.downcast::<gdk4_x11::X11Surface>() {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let xid = x11_surface.xid() as u32;
+    eprintln!("[DBG] WINDOW_XID set to 0x{xid:x}");
+    let _ = WINDOW_XID.set(xid);
+    // Bypass the WM so configure_window(-10000,-10000) is honored.
+    // Without override_redirect, WMs silently reject off-screen ConfigureRequests.
+    let cwa = ChangeWindowAttributesAux::new().override_redirect(1u32);
+    let _ = conn.change_window_attributes(xid, &cwa);
+    // Start off-screen, pin above all other windows.
+    let aux = ConfigureWindowAux::new()
+        .x(-10000)
+        .y(-10000)
+        .stack_mode(StackMode::ABOVE);
+    let _ = conn.configure_window(xid, &aux);
+    let _ = conn.flush();
+}
+
+const KEYCODE_ESC: u8 = 9;
+const KEYCODE_H: u8 = 43;
+const KEYCODE_TAB: u8 = 23;
+
+/// Register passive X11 key grabs on the root window so KeyPress events
+/// for our combos arrive on our x11rb connection even when the lens window
+/// has no WM focus (override_redirect windows never get focus from the WM).
+/// This replaces query_keymap() polling — event-driven, no polling overhead.
+fn setup_key_grabs() -> bool {
+    let conn = match x11_conn() { Some(c) => c, None => return false };
+    let root = match root_window() { Some(r) => r, None => return false };
+
+    // Lock modifiers: none, CapsLock (LOCK), NumLock (M2), and both combined.
+    // Must register each combo with every combination so the grab fires
+    // regardless of lock state.
+    let lock_bits: [u16; 4] = [0, u16::from(ModMask::LOCK), u16::from(ModMask::M2),
+        u16::from(ModMask::LOCK) | u16::from(ModMask::M2)];
+    let shift_bits = u16::from(ModMask::SHIFT);
+
+    let ctrl_bits = u16::from(ModMask::CONTROL);
+    for &lock in &lock_bits {
+        // ESC alone (no modifiers besides lock keys)
+        let _ = conn.grab_key(false, root, ModMask::from(lock), KEYCODE_ESC, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+ESC
+        let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_ESC, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+H
+        let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_H, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+Tab
+        let _ = conn.grab_key(false, root, ModMask::from(shift_bits | lock), KEYCODE_TAB, GrabMode::ASYNC, GrabMode::ASYNC);
+        // Shift+Button1 — consumed by Lenzu, not forwarded to browser
+        let _ = conn.grab_button(false, root,
+            EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE,
+            GrabMode::ASYNC, GrabMode::ASYNC,
+            0u32, 0u32,
+            ButtonIndex::M1,
+            ModMask::from(shift_bits | lock));
+        // Ctrl+Shift+Button1 — force-remote OCR path
+        let _ = conn.grab_button(false, root,
+            EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE,
+            GrabMode::ASYNC, GrabMode::ASYNC,
+            0u32, 0u32,
+            ButtonIndex::M1,
+            ModMask::from(ctrl_bits | shift_bits | lock));
+    }
+    let _ = conn.flush();
+    true
+}
+
+/// Poll our x11rb connection for pending events from passive grabs.
+/// Returns (key_events, btn_events) where each entry is (detail, state).
+/// For keys: detail = keycode. For buttons: detail = button number (1 = left).
+/// Non-blocking — returns empty vecs if no events pending.
+fn poll_x11_events() -> (Vec<(u8, u16)>, Vec<(u8, u16)>) {
+    let conn = match x11_conn() { Some(c) => c, None => return (vec![], vec![]) };
+    let mut key_events = vec![];
+    let mut btn_events = vec![];
+    loop {
+        let ev = match conn.poll_for_event() {
+            Ok(Some(e)) => e,
+            Ok(None) => break,
+            Err(_) => break,
+        };
+        match ev {
+            Event::KeyPress(ke) => key_events.push((ke.detail, ke.state.bits())),
+            Event::ButtonPress(be) => btn_events.push((be.detail, be.state.bits())),
+            _ => {},
+        }
+    }
+    (key_events, btn_events)
+}
+
+fn input_shape_clickthrough(window: &gtk4::ApplicationWindow) {
+    if let Some(surface) = window.surface() {
+        let region = cairo::Region::create();
+        surface.set_input_region(Some(&region));
+    }
+}
 use lenzu::capture;
 use lenzu::client;
 use lenzu::config;
@@ -295,10 +453,7 @@ fn notices_path(filename: &str) -> Option<std::path::PathBuf> {
 }
 
 /// Scrollable dialog showing third-party license attributions.
-/// Loads the curated `NOTICES.md` and (if present) the auto-generated
-/// `NOTICES.crates.md` from `cargo-about`, concatenating with a separator.
-/// Falls back to a short "see /usr/share/doc/lenzu/" message if both are missing.
-fn show_about_dialog(parent: &gtk::Window) {
+fn show_about_dialog(parent: &gtk4::ApplicationWindow) {
     let read = |name: &str| -> Option<String> {
         notices_path(name).and_then(|p| std::fs::read_to_string(p).ok())
     };
@@ -312,48 +467,43 @@ fn show_about_dialog(parent: &gtk::Window) {
             .to_string(),
     };
 
-    let dialog = gtk::Dialog::with_buttons(
-        Some("Lenzu — About / Third-Party Notices"),
-        Some(parent),
-        gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT,
-        &[("Close", gtk::ResponseType::Close)],
-    );
+    let dialog = gtk4::Window::new();
+    dialog.set_title(Some("Lenzu — About / Third-Party Notices"));
     dialog.set_default_size(640, 480);
+    dialog.set_modal(true);
+    dialog.set_transient_for(Some(parent));
+    dialog.set_destroy_with_parent(true);
 
-    let scrolled = gtk::ScrolledWindow::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
-    scrolled.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+    let scrolled = gtk4::ScrolledWindow::new();
+    scrolled.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
     scrolled.set_vexpand(true);
     scrolled.set_hexpand(true);
 
-    let text_view = gtk::TextView::new();
+    let text_view = gtk4::TextView::new();
     text_view.set_editable(false);
     text_view.set_cursor_visible(false);
-    text_view.set_wrap_mode(gtk::WrapMode::Word);
+    text_view.set_wrap_mode(gtk4::WrapMode::Word);
     text_view.set_left_margin(12);
     text_view.set_right_margin(12);
     text_view.set_top_margin(8);
     text_view.set_bottom_margin(8);
-    text_view.buffer().expect("text view buffer").set_text(&body);
+    text_view.buffer().set_text(&body);
 
-    scrolled.add(&text_view);
-    dialog.content_area().pack_start(&scrolled, true, true, 0);
-    dialog.show_all();
-    dialog.run();
-    // close() emits the close signal so any handlers can react; hide()
-    // performs the actual dismissal (close() alone has no default action).
-    // unsafe destroy() destabilizes the parent (Electron respawns, JS
-    // errors, broken Close) so we don't use it.  Per-invocation allocation
-    // is bounded by DESTROY_WITH_PARENT.
-    dialog.close();
-    dialog.hide();
+    scrolled.set_child(Some(&text_view));
+
+    let close_button = gtk4::Button::with_label("Close");
+    let dialog_clone = dialog.clone();
+    close_button.connect_clicked(move |_| { dialog_clone.close(); });
+
+    let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+    vbox.append(&scrolled);
+    vbox.append(&close_button);
+    dialog.set_child(Some(&vbox));
+    dialog.present();
 }
 
 /// Modal dialog listing all keyboard shortcuts, displayed in Japanese.
-/// Buttons: "About" (opens the third-party notices dialog) and "Close"
-/// (Esc-style exit).  Clicking About dismisses Help and shows Notices —
-/// re-opening Help is one Shift+H away.  Linear flow avoids GTK's nested-
-/// event-loop hazards from re-running the same dialog within a loop.
-fn show_help_dialog(parent: &gtk::Window) {
+fn show_help_dialog(parent: &gtk4::ApplicationWindow) {
     let help = format!("\
 Lenzu v{}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -379,33 +529,55 @@ ESC
 Shift＋ESC
   → 終了", env!("CARGO_PKG_VERSION"));
 
-    let about_response = gtk::ResponseType::Other(1);
-    let dialog = gtk::MessageDialog::new(
-        Some(parent),
-        gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT,
-        gtk::MessageType::Info,
-        gtk::ButtonsType::None,
-        &help,
-    );
-    dialog.set_title("Lenzu ヘルプ");
-    dialog.add_button("About", about_response);
-    dialog.add_button("Close", gtk::ResponseType::Close);
-    let response = dialog.run();
-    // close() emits the close signal so handlers can react; hide() performs
-    // the actual dismissal.  close() alone leaves the dialog visible behind
-    // any subsequently-opened modal.  Per-invocation leak is bounded by
-    // DESTROY_WITH_PARENT (cleaned up at app exit).
-    dialog.close();
-    dialog.hide();
-    if response == about_response {
-        show_about_dialog(parent);
-    }
+    let dialog = gtk4::Window::new();
+    dialog.set_title(Some("Lenzu ヘルプ"));
+    dialog.set_default_size(420, 400);
+    dialog.set_modal(true);
+    dialog.set_transient_for(Some(parent));
+    dialog.set_destroy_with_parent(true);
+
+    let text_view = gtk4::TextView::new();
+    text_view.set_editable(false);
+    text_view.set_cursor_visible(false);
+    text_view.set_wrap_mode(gtk4::WrapMode::Word);
+    text_view.set_left_margin(12);
+    text_view.set_right_margin(12);
+    text_view.set_top_margin(8);
+    text_view.set_bottom_margin(8);
+    text_view.buffer().set_text(&help);
+
+    let about_button = gtk4::Button::with_label("About");
+    let close_button = gtk4::Button::with_label("Close");
+
+    let hbox = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+    hbox.set_margin_top(6);
+    hbox.set_margin_bottom(6);
+    hbox.set_halign(gtk4::Align::End);
+    hbox.append(&about_button);
+    hbox.append(&close_button);
+
+    let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+    vbox.append(&text_view);
+    vbox.append(&hbox);
+    dialog.set_child(Some(&vbox));
+
+    let dialog_clone = dialog.clone();
+    let parent_clone = parent.clone();
+    about_button.connect_clicked(move |_| {
+        dialog_clone.close();
+        show_about_dialog(&parent_clone);
+    });
+
+    let dialog_clone = dialog.clone();
+    close_button.connect_clicked(move |_| { dialog_clone.close(); });
+
+    dialog.present();
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> glib::ExitCode {
     if std::env::args().any(|a| a == "--version" || a == "-V") {
         println!("lenzu {}", env!("CARGO_PKG_VERSION"));
-        return Ok(());
+        return glib::ExitCode::SUCCESS;
     }
     eprintln!("[Lenzu] v{}", env!("CARGO_PKG_VERSION"));
     // Ensure /dev/shm/lenzu/ exists for all runtime output files.
@@ -547,210 +719,167 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    gtk::init().expect("Failed to initialize GTK.");
+    let app = gtk4::Application::builder()
+        .application_id("io.github.codemonkeyninja.lenzu")
+        .build();
 
-    let server_process = if cfg.overlay_enabled {
-        spawn_server(cfg.overlay_udp_port)
-    } else {
-        None
-    };
+    app.connect_activate(move |app_ref| {
+        init_x11();
 
-    let state = Rc::new(RefCell::new(AppState {
-        config: cfg.clone(),
-        pixels: None,
-        ocr_result: String::new(),
-        status: ready_status(&cfg.translate_src, &cfg.translate_dest),
-        last_capture: Instant::now() - Duration::from_secs(2),
-        clipboard: Clipboard::new().expect("Failed to init clipboard"),
-        api_key,
-        is_loading: false,
-        spinner_angle: 0.0,
-        flash_alpha: 0.0,
-        server_process,
-        text_detector,
-        local_ocr,
-        hud_at_top: false,
-        tokio_handle: tokio_handle.clone(),
-        in_flight: None,
-        current_generation: 0,
-    }));
-
-    let window = gtk::Window::new(gtk::WindowType::Toplevel);
-    window.set_default_size(cfg.lens_size, cfg.lens_size + cfg.ui_panel_height);
-    window.set_decorated(false);
-    window.set_keep_above(true);
-    window.set_app_paintable(true);
-
-    if let Some(screen) = gtk::prelude::WidgetExt::screen(&window) {
-        if let Some(visual) = screen.rgba_visual() {
-            window.set_visual(Some(&visual));
-        }
-    }
-
-    let cfg_key = cfg.clone();
-    let state_key = state.clone();
-    let window_key = window.clone();
-    window.connect_key_press_event(move |_, event| {
-        let kv = event.keyval();
-        let mods = event.state();
-
-        // Plain ESC → cancel in-flight OCR (no-op if nothing is in flight).
-        // Shift+ESC → quit the app.
-        if kv == gdk::keys::constants::Escape {
-            if mods.contains(gdk::ModifierType::SHIFT_MASK) {
-                kill_server(&mut state_key.borrow_mut().server_process, &cfg_key);
-                gtk::main_quit();
-                return glib::Propagation::Proceed;
-            }
-            let mut s = state_key.borrow_mut();
-            s.cancel_inflight("user-cancel");
-            s.is_loading = false;
-            s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
-            window_key.queue_draw();
-            return glib::Propagation::Proceed;
-        }
-
-        // Shift+H → Japanese help dialog
-        if (kv == gdk::keys::constants::h || kv == gdk::keys::constants::H)
-            && mods.contains(gdk::ModifierType::SHIFT_MASK)
-        {
-            {
-                let mut s = state_key.borrow_mut();
-                s.cancel_inflight("help-dialog");
-                s.is_loading = false;
-            }
-            show_help_dialog(&window_key);
-            return glib::Propagation::Proceed;
-        }
-
-        // Shift+Tab → toggle translation direction (swap src ↔ dest)
-        if kv == gdk::keys::constants::ISO_Left_Tab
-            || (kv == gdk::keys::constants::Tab
-                && mods.contains(gdk::ModifierType::SHIFT_MASK))
-        {
-            let mut s = state_key.borrow_mut();
-            s.cancel_inflight("direction-toggle");
-            s.is_loading = false;
-            // Language is Copy — read both then assign back to avoid split-borrow error
-            let (new_src, new_dest) = (s.config.translate_dest, s.config.translate_src);
-            s.config.translate_src = new_src;
-            s.config.translate_dest = new_dest;
-            s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
-            window_key.queue_draw();
-            return glib::Propagation::Proceed;
-        }
-
-        glib::Propagation::Proceed
-    });
-
-    let cfg_del = cfg.clone();
-    let state_del = state.clone();
-    window.connect_delete_event(move |_, _| {
-        kill_server(&mut state_del.borrow_mut().server_process, &cfg_del);
-        glib::Propagation::Proceed // allow window close → GTK loop ends naturally
-    });
-
-    // (gen_id, result) — gen_id lets the receiver drop stale frames from
-    // a cancelled generation that were already in the buffer before abort()
-    // fired. abort() stops future sends, but the channel may hold sends that
-    // ran just before the cancel; the gen stamp is how we filter those out.
-    let (tx, rx) = async_channel::bounded::<(u64, Result<(Vec<client::TranslationResult>, client::OcrMeta), String>)>(3);
-
-    let state_draw = state.clone();
-    window.connect_draw(move |win, cr| {
-        let s = state_draw.borrow();
-        // HUD color: override based on session paid token spend
-        let (r, g, b) = {
-            let (sp, sc) = client::session_paid_tokens();
-            let total = sp + sc;
-            if s.config.token_critical_threshold > 0 && total >= s.config.token_critical_threshold {
-                (1.0, 0.27, 0.27) // red (#FF4444)
-            } else if s.config.token_warning_threshold > 0 && total >= s.config.token_warning_threshold {
-                (1.0, 0.65, 0.0) // orange (#FFA600)
-            } else {
-                hex_to_rgb(&s.config.hud_color_hex)
-            }
+        let server_process = if cfg.overlay_enabled {
+            spawn_server(cfg.overlay_udp_port)
+        } else {
+            None
         };
 
-        cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
-        cr.set_operator(cairo::Operator::Source);
-        cr.paint().ok();
-        cr.set_operator(cairo::Operator::Over);
+        let state = Rc::new(RefCell::new(AppState {
+            config: cfg.clone(),
+            pixels: None,
+            ocr_result: String::new(),
+            status: ready_status(&cfg.translate_src, &cfg.translate_dest),
+            last_capture: Instant::now() - Duration::from_secs(2),
+            clipboard: Clipboard::new().expect("Failed to init clipboard"),
+            api_key: api_key.clone(),
+            is_loading: false,
+            spinner_angle: 0.0,
+            flash_alpha: 0.0,
+            server_process,
+            text_detector: text_detector.clone(),
+            local_ocr: local_ocr.clone(),
+            hud_at_top: false,
+            tokio_handle: tokio_handle.clone(),
+            in_flight: None,
+            current_generation: 0,
+        }));
 
-        if let Some(ref pb) = s.pixels {
-            cr.set_source_pixbuf(pb, 0.0, 0.0);
+        let window = gtk4::ApplicationWindow::new(app_ref);
+        window.set_default_size(cfg.lens_size, cfg.lens_size + cfg.ui_panel_height);
+        window.set_decorated(false);
+
+        let css = gtk4::CssProvider::new();
+        css.load_from_string("window { background: transparent; }");
+        let display = gtk4::prelude::RootExt::display(&window);
+        gtk4::style_context_add_provider_for_display(&display, &css, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+        // Key combos (ESC, Shift+ESC, Shift+H, Shift+Tab) are handled via X11
+        // passive key grabs (setup_key_grabs) and polled in the 16ms timer so
+        // they work even when the window has no WM focus (override_redirect).
+
+        let cfg_del = cfg.clone();
+        let state_del = state.clone();
+        window.connect_close_request(move |_| {
+            kill_server(&mut state_del.borrow_mut().server_process, &cfg_del);
+            glib::Propagation::Proceed
+        });
+
+        // (gen_id, result) — gen_id lets the receiver drop stale frames from
+        // a cancelled generation that were already in the buffer before abort()
+        // fired. abort() stops future sends, but the channel may hold sends that
+        // ran just before the cancel; the gen stamp is how we filter those out.
+        let (tx, rx) = async_channel::bounded::<(u64, Result<(Vec<client::TranslationResult>, client::OcrMeta), String>)>(3);
+
+        let area = gtk4::DrawingArea::new();
+        area.set_hexpand(true);
+        area.set_vexpand(true);
+
+        let state_draw = state.clone();
+        area.set_draw_func(move |da, cr, _w, _h| {
+            let s = match state_draw.try_borrow() {
+                Ok(s) => s,
+                Err(_) => return,
+            };
+            // HUD color: override based on session paid token spend
+            let (r, g, b) = {
+                let (sp, sc) = client::session_paid_tokens();
+                let total = sp + sc;
+                if s.config.token_critical_threshold > 0 && total >= s.config.token_critical_threshold {
+                    (1.0, 0.27, 0.27) // red (#FF4444)
+                } else if s.config.token_warning_threshold > 0 && total >= s.config.token_warning_threshold {
+                    (1.0, 0.65, 0.0) // orange (#FFA600)
+                } else {
+                    hex_to_rgb(&s.config.hud_color_hex)
+                }
+            };
+
+            cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
+            cr.set_operator(cairo::Operator::Source);
             cr.paint().ok();
-        }
+            cr.set_operator(cairo::Operator::Over);
 
-        if s.flash_alpha > 0.0 {
-            cr.set_source_rgba(1.0, 1.0, 1.0, s.flash_alpha);
+            if let Some(ref pb) = s.pixels {
+                cr.set_source_pixbuf(pb, 0.0, 0.0);
+                cr.paint().ok();
+            }
+
+            if s.flash_alpha > 0.0 {
+                cr.set_source_rgba(1.0, 1.0, 1.0, s.flash_alpha);
+                cr.rectangle(
+                    0.0,
+                    0.0,
+                    s.config.lens_size as f64,
+                    s.config.lens_size as f64,
+                );
+                cr.fill().ok();
+            }
+
+            cr.set_source_rgb(r, g, b);
+            cr.set_line_width(2.0);
+            cr.rectangle(
+                1.0,
+                1.0,
+                (s.config.lens_size - 2) as f64,
+                (s.config.lens_size - 2) as f64,
+            );
+            cr.stroke().ok();
+
+            cr.set_source_rgba(0.01, 0.01, 0.05, 0.85);
             cr.rectangle(
                 0.0,
-                0.0,
                 s.config.lens_size as f64,
                 s.config.lens_size as f64,
+                s.config.ui_panel_height as f64,
             );
             cr.fill().ok();
-        }
 
-        cr.set_source_rgb(r, g, b);
-        cr.set_line_width(2.0);
-        cr.rectangle(
-            1.0,
-            1.0,
-            (s.config.lens_size - 2) as f64,
-            (s.config.lens_size - 2) as f64,
-        );
-        cr.stroke().ok();
+            let context = da.pango_context();
+            let layout = pango::Layout::new(&context);
 
-        cr.set_source_rgba(0.01, 0.01, 0.05, 0.85);
-        cr.rectangle(
-            0.0,
-            s.config.lens_size as f64,
-            s.config.lens_size as f64,
-            s.config.ui_panel_height as f64,
-        );
-        cr.fill().ok();
-
-        let context = win.pango_context();
-        let layout = pango::Layout::new(&context);
-
-        cr.set_source_rgb(r, g, b);
-        layout.set_text(&s.status);
-        cr.move_to(12.0, (s.config.lens_size + 10) as f64);
-        pangocairo::show_layout(cr, &layout);
-
-        if s.is_loading {
-            cr.save().ok();
-            cr.translate(
-                (s.config.lens_size - 30) as f64,
-                (s.config.lens_size + 20) as f64,
-            );
-            cr.rotate(s.spinner_angle);
-            cr.set_line_width(3.0);
             cr.set_source_rgb(r, g, b);
-            cr.new_sub_path();
-            cr.arc(0.0, 0.0, 8.0, 0.0, 1.5 * std::f64::consts::PI);
-            cr.stroke().ok();
-            cr.restore().ok();
-        }
+            layout.set_text(&s.status);
+            cr.move_to(12.0, (s.config.lens_size + 10) as f64);
+            pangocairo::functions::show_layout(cr, &layout);
 
-        cr.set_source_rgb(1.0, 1.0, 1.0);
-        let font_str = format!("Sans Bold {}", s.config.font_size);
-        let font_desc = pango::FontDescription::from_string(&font_str);
-        layout.set_font_description(Some(&font_desc));
-        layout.set_text(&s.ocr_result);
-        layout.set_width(pango::units_from_double((s.config.lens_size - 24) as f64));
-        layout.set_ellipsize(pango::EllipsizeMode::End);
-        cr.move_to(12.0, (s.config.lens_size + 40) as f64);
-        pangocairo::show_layout(cr, &layout);
+            if s.is_loading {
+                cr.save().ok();
+                cr.translate(
+                    (s.config.lens_size - 30) as f64,
+                    (s.config.lens_size + 20) as f64,
+                );
+                cr.rotate(s.spinner_angle);
+                cr.set_line_width(3.0);
+                cr.set_source_rgb(r, g, b);
+                cr.new_sub_path();
+                cr.arc(0.0, 0.0, 8.0, 0.0, 1.5 * std::f64::consts::PI);
+                cr.stroke().ok();
+                cr.restore().ok();
+            }
 
-        glib::Propagation::Proceed
-    });
+            cr.set_source_rgb(1.0, 1.0, 1.0);
+            let font_str = format!("Sans Bold {}", s.config.font_size);
+            let font_desc = pango::FontDescription::from_string(&font_str);
+            layout.set_font_description(Some(&font_desc));
+            layout.set_text(&s.ocr_result);
+            layout.set_width(pango::units_from_double((s.config.lens_size - 24) as f64));
+            layout.set_ellipsize(pango::EllipsizeMode::End);
+            cr.move_to(12.0, (s.config.lens_size + 40) as f64);
+            pangocairo::functions::show_layout(cr, &layout);
+        });
 
-    let state_rx = state.clone();
-    let window_rx = window.clone();
-    glib::MainContext::default().spawn_local(async move {
+        window.set_child(Some(&area));
+
+        let state_rx = state.clone();
+        let window_rx = window.clone();
+        glib::spawn_future_local(async move {
         while let Ok((msg_gen, api_result)) = rx.recv().await {
         let mut s = state_rx.borrow_mut();
         // Drop results from a cancelled / superseded generation so stale
@@ -766,6 +895,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // (is_loading stays true) so the user can't stack new requests.
                 if !meta.preview {
                     s.is_loading = false;
+                    // Display window starts from when the result is ready, not from
+                    // click time. Without this reset, fast OCR (< result_display_secs)
+                    // keeps show_lens=true for several seconds after the result is
+                    // already visible, making the lens appear "stuck".
+                    s.last_capture = Instant::now();
                 }
 
                 let combined_english = results
@@ -825,6 +959,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 s.is_loading = false;
+                s.last_capture = Instant::now();
                 eprintln!("[OCR] API/parse error: {}", e);
                 s.status = format!("API Error: {}", e);
             }
@@ -848,77 +983,137 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         glib::ControlFlow::Continue
     });
 
-    let window_main = window.clone();
-    let state_main = state.clone();
-    glib::timeout_add_local(Duration::from_millis(16), move || {
-        // Safe GDK accessors — any None means the display isn't ready yet; skip tick.
-        let display = match gdk::Display::default() {
-            Some(d) => d,
-            None => return glib::ControlFlow::Continue,
-        };
-        let seat = match display.default_seat() {
-            Some(s) => s,
-            None => return glib::ControlFlow::Continue,
-        };
-        let device = match seat.pointer() {
-            Some(d) => d,
-            None => return glib::ControlFlow::Continue,
-        };
-        let screen = match gdk::Screen::default() {
-            Some(s) => s,
-            None => return glib::ControlFlow::Continue,
-        };
-        let root_win = match screen.root_window() {
-            Some(w) => w,
-            None => return glib::ControlFlow::Continue,
-        };
-        let (_, x, y, modifier) = root_win.device_position(&device);
-
-        let s_conf = state_main.borrow().config.clone();
-        let win_x = x - (s_conf.lens_size / 2);
-        let win_y = y - (s_conf.lens_size / 2);
-
-        let is_shift_click = modifier.contains(gdk::ModifierType::SHIFT_MASK)
-            && modifier.contains(gdk::ModifierType::BUTTON1_MASK);
-        let force_remote = is_shift_click && modifier.contains(gdk::ModifierType::CONTROL_MASK);
-
-        // Show the lens only while Shift is held (preview), while OCR is running,
-        // or for 5 s after the last capture (so the user can read the result).
-        // Otherwise hide it so the window doesn't follow the cursor everywhere.
-        let shift_held = modifier.contains(gdk::ModifierType::SHIFT_MASK);
-        let show_lens = {
-            let s = state_main.borrow();
-            shift_held || s.is_loading || s.last_capture.elapsed() < Duration::from_secs(s.config.result_display_secs)
-        };
-        if show_lens {
-            window_main.move_(win_x, win_y);
-            if !window_main.is_visible() {
-                window_main.show();
-            }
-        } else if window_main.is_visible() {
-            window_main.hide();
-        }
-
-        // ── HUD auto-reposition ───────────────────────────────────────────────
-        // Cursor in bottom 30 % → HUD to top; cursor in top 30 % → HUD to bottom.
-        // 30–70 % is a dead zone to prevent oscillation.
-        {
-            let sh = root_win.height();
-            let frac = if sh > 0 { y as f32 / sh as f32 } else { 0.5 };
-            let (cur_top, port) = {
-                let s = state_main.borrow();
-                (s.hud_at_top, s.config.overlay_udp_port)
+        let window_main = window.clone();
+        let state_main = state.clone();
+        let app_main = app_ref.clone();
+        let mut esc_was_down = false;
+        let mut h_was_down = false;
+        let mut tab_was_down = false;
+        let mut esc_last_action = Instant::now();
+        let mut h_last_action = Instant::now();
+        let mut tab_last_action = Instant::now();
+        glib::timeout_add_local(Duration::from_millis(16), move || {
+            let (x, y, mask) = match pointer_position() {
+                Some(p) => p,
+                None => {
+                    eprintln!("[DBG] pointer_position() returned None — X11 conn or root window missing");
+                    return glib::ControlFlow::Continue;
+                }
             };
-            if frac > 0.70 && !cur_top {
-                send_hud_position("top", port);
-                state_main.borrow_mut().hud_at_top = true;
-            } else if frac < 0.30 && cur_top {
-                send_hud_position("bottom", port);
-                state_main.borrow_mut().hud_at_top = false;
-            }
-        }
 
-        if is_shift_click {
+            let s_conf = state_main.borrow().config.clone();
+            let win_x = x - (s_conf.lens_size / 2);
+            let win_y = y - (s_conf.lens_size / 2);
+
+            let shift_bits = KeyButMask::SHIFT.bits();
+            let ctrl_bits = KeyButMask::CONTROL.bits();
+
+            // Show the lens only while Shift is held (preview), while OCR is running,
+            // or for a configured number of seconds after the last capture.
+            // Use off-screen positioning to keep the GDK surface mapped (no frame-clock gaps).
+            let shift_held = (mask & shift_bits) != 0;
+            let show_lens = {
+                let s = state_main.borrow();
+                shift_held || s.is_loading || s.last_capture.elapsed() < Duration::from_secs(s.config.result_display_secs)
+            };
+            if show_lens {
+                move_window(win_x, win_y);
+                window_main.queue_draw();
+            } else {
+                move_window(-10000, -10000);
+            }
+
+            // ── Key combo + button detection via X11 passive grabs ───────────────
+            // Passive grabs deliver KeyPress/ButtonPress events on our x11rb connection
+            // even when the lens window has no WM focus (override_redirect bypasses WM).
+            // Rising-edge detection: act on first event per press-release cycle.
+            // 200ms debounce prevents auto-repeat double-trigger.
+            let (key_events, btn_events) = poll_x11_events();
+            {
+                let mut esc_in_events = false;
+                let mut h_in_events = false;
+                let mut tab_in_events = false;
+                let mut esc_state = 0u16;
+                for &(kc, state) in &key_events {
+                    if kc == KEYCODE_ESC { esc_in_events = true; esc_state = state; }
+                    if kc == KEYCODE_H { h_in_events = true; }
+                    if kc == KEYCODE_TAB { tab_in_events = true; }
+                }
+
+                if esc_in_events && !esc_was_down && esc_last_action.elapsed() > Duration::from_millis(200) {
+                    esc_last_action = Instant::now();
+                    if (esc_state & KeyButMask::SHIFT.bits()) != 0 {
+                        let mut s = state_main.borrow_mut();
+                        let cfg = s.config.clone();
+                        kill_server(&mut s.server_process, &cfg);
+                        drop(s);
+                        app_main.quit();
+                        return glib::ControlFlow::Break;
+                    }
+                    let mut s = state_main.borrow_mut();
+                    s.cancel_inflight("user-cancel");
+                    s.is_loading = false;
+                    s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
+                    drop(s);
+                    window_main.queue_draw();
+                }
+                if h_in_events && !h_was_down && h_last_action.elapsed() > Duration::from_millis(200) {
+                    h_last_action = Instant::now();
+                    {
+                        let mut s = state_main.borrow_mut();
+                        s.cancel_inflight("help-dialog");
+                        s.is_loading = false;
+                    }
+                    show_help_dialog(&window_main);
+                }
+                if tab_in_events && !tab_was_down && tab_last_action.elapsed() > Duration::from_millis(200) {
+                    tab_last_action = Instant::now();
+                    let mut s = state_main.borrow_mut();
+                    s.cancel_inflight("direction-toggle");
+                    s.is_loading = false;
+                    let (new_src, new_dest) = (s.config.translate_dest, s.config.translate_src);
+                    s.config.translate_src = new_src;
+                    s.config.translate_dest = new_dest;
+                    s.status = ready_status(&s.config.translate_src, &s.config.translate_dest);
+                    drop(s);
+                    window_main.queue_draw();
+                }
+                esc_was_down = esc_in_events;
+                h_was_down   = h_in_events;
+                tab_was_down = tab_in_events;
+            }
+
+            // ── Shift+Click detection via XGrabButton passive grab ────────────────
+            // Shift+Button1 is consumed by our passive grab (browser never sees it).
+            // Detect from ButtonPress events in the x11rb connection buffer, not from
+            // query_pointer mask (which would fire continuously while held down).
+            let is_shift_click = btn_events.iter().any(|&(btn, state)| {
+                btn == 1 && (state & shift_bits) != 0
+            });
+            let force_remote = btn_events.iter().any(|&(btn, state)| {
+                btn == 1 && (state & shift_bits) != 0 && (state & ctrl_bits) != 0
+            });
+
+            // ── HUD auto-reposition ───────────────────────────────────────────────
+            // Cursor in bottom 30 % → HUD to top; cursor in top 30 % → HUD to bottom.
+            // 30–70 % is a dead zone to prevent oscillation.
+            {
+                let sh = screen_height();
+                let frac = if sh > 0 { y as f32 / sh as f32 } else { 0.5 };
+                let (cur_top, port) = {
+                    let s = state_main.borrow();
+                    (s.hud_at_top, s.config.overlay_udp_port)
+                };
+                if frac > 0.70 && !cur_top {
+                    send_hud_position("top", port);
+                    state_main.borrow_mut().hud_at_top = true;
+                } else if frac < 0.30 && cur_top {
+                    send_hud_position("bottom", port);
+                    state_main.borrow_mut().hud_at_top = false;
+                }
+            }
+
+            if is_shift_click {
             // A new shift-modified click supersedes any in-flight OCR — abort
             // the old request's TCP socket so the remote backend stops billing,
             // and clear is_loading so the new capture isn't blocked by the old
@@ -983,10 +1178,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 window_main.queue_draw();
-                window_main.hide();
-                while gtk::events_pending() {
-                    gtk::main_iteration();
-                }
+                move_window(-10000, -10000);
+                while glib::MainContext::default().iteration(false) {}
                 std::thread::sleep(Duration::from_millis(400));
 
                 // Feature 2: Ctrl+Shift+Click with DBNet → capture full desktop so DBNet
@@ -1027,7 +1220,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             ));
                         }
 
-                        window_main.show();
+                        move_window(win_x, win_y);
                         let tx_clone = tx.clone();
                         let (tokio_handle_thread, gen_id) = {
                             let s = state_main.borrow();
@@ -1510,7 +1703,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let mut s = state_main.borrow_mut();
                         s.is_loading = false;
                         s.status = "Capture Failed".to_string();
-                        window_main.show();
+                        move_window(win_x, win_y);
                     }
                 }
             }
@@ -1518,19 +1711,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         glib::ControlFlow::Continue
     });
 
-    window.show_all();
-
-    // Make the entire window click-through so mouse events (clicks, scroll wheel)
-    // pass through to whatever is underneath.  Lenzu detects Shift+Click by polling
-    // the root window — it never needed to *receive* mouse events directly.
-    // Note: ESC still works after alt+tabbing to the Lenzu window (or Ctrl+C in terminal).
-    if let Some(gdk_win) = gtk::prelude::WidgetExt::window(&window) {
-        // An empty cairo::Region means no area accepts pointer input → fully click-through.
-        let empty = cairo::Region::create();
-        gdk_win.input_shape_combine_region(&empty, 0, 0);
-    }
-
-    gtk::main();
+        // realize() creates the GDK surface (and thus the X11 XID) without
+        // mapping the window, so we can set override_redirect before present().
+        gtk4::prelude::WidgetExt::realize(&window);
+        set_window_state(&window);
+        input_shape_clickthrough(&window);
+        window.present();
+    }); // close connect_activate
+    let exit_code = app.run();
     let _ = std::fs::remove_file(PID_FILE);
-    Ok(())
+    exit_code
 }

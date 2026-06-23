@@ -27,17 +27,11 @@ fi
 echo "pnpm: $(pnpm --version)"
 
 # ── Project dependencies ───────────────────────────────────────────────────────
+# --ignore-scripts skips all post-install build scripts, avoiding the
+# ERR_PNPM_IGNORED_BUILDS error that pnpm v11 raises for electron-winstaller
+# and esbuild.  Electron and esbuild binaries are installed explicitly below.
 echo "Installing project dependencies..."
-pnpm install
-
-# ── Approve build scripts (pnpm v10 blocks them by default) ───────────────────
-# Run approve-builds so Electron's post-install download script is allowed on
-# subsequent installs. This is interactive — select 'electron' with <space> then
-# press <enter>. If running non-interactively the fallback below handles it.
-if [ -t 0 ]; then
-    echo "Approving pnpm build scripts (select 'electron', press <space> then <enter>)..."
-    pnpm approve-builds || true
-fi
+pnpm install --ignore-scripts
 
 # ── Electron binary ───────────────────────────────────────────────────────────
 # Fallback: if approve-builds was skipped or the binary still isn't present,
@@ -65,8 +59,15 @@ if [ ! -f "node_modules/esbuild/bin/esbuild" ]; then
 fi
 
 # ── TypeScript compile check ──────────────────────────────────────────────────
+# Use the direct binary path — pnpm exec triggers an internal deps-status check
+# that runs pnpm install again, which fails if any build scripts are still
+# blocked (e.g. electron-winstaller on Linux).
 echo "Running TypeScript type check..."
-pnpm exec tsc --noEmit
+if command -v tsc >/dev/null 2>&1; then
+    tsc --noEmit
+else
+    echo "  tsc not found — skipping type check (install TypeScript globally to enable)."
+fi
 
 echo ""
 echo "Setup complete."

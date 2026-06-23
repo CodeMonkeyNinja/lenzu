@@ -1,7 +1,7 @@
 # GTK-rs Dependency Analysis — Upgrade Blockers
 
 **Scope:** Main `lenzu` crate. Prototype-specific findings in
-`lenzu-prototypes/docs/prototypes-desktop-issues.md`.
+[`prototypes-desktop-issues.md`](prototypes-desktop-issues.md) (same `lenzu/docs/` directory).
 
 ---
 
@@ -55,30 +55,37 @@ is impossible without breaking the build.
 
 ---
 
+## 3b. GTK4 Migration — Prototypes Succeeded
+
+**Consolidated into the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations)** — all workaround tables,
+guide cross-references, and migration decisions for the prototype workspace now live
+there. See the following sections:
+
+| Topic | `GTK-Migrations.md` section |
+|-------|---------------------------|
+| Full workaround table (22 rows) | § Full Workaround Table |
+| Official guide cross-reference | § Guide Cross-Reference |
+| Key combo architecture | § Key Combo Architecture |
+| Summary: GTK3 vs GTK4 per invariant | § Summary Table |
+| Architectural decisions timeline | § Architectural Decisions |
+| Workspace dependency graph | § Workspace Dependency Graph |
+
+A test crate is on the `feat/gtk4-upgrade-test` branch at
+[`prototypes/x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test) for prototyping the main lenzu crate's migration. *(was `gtk4-lens-test` — renamed)*
+
+---
+
 ## 4. Migration Surface Area
+
+**Consolidated into the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations)** — see § Main Crate Migration
+Surface Area for the full GTK3→GTK4 mapping table.
 
 Only one file uses the GTK family: **`lenzu/src/main.rs`** (~180 of 1536 lines).
 All other 14 Rust source files are unaffected.
 
-### If migrating to GTK4 (`gtk4` crate)
-
-Would require rewriting the GTK3-specific patterns in main.rs:
-
-| Current (gtk-rs 0.18 GTK3) | Notes for GTK4 |
-|---|---|
-| `Window::new(Toplevel)` | `ApplicationWindow` or `Window` + `Application` pattern |
-| `Screen::rgba_visual()`, `set_visual()` | `gtk4::WidgetExt` handles transparency differently |
-| `connect_key_press_event` → `Propagation` | `EventControllerKey` instead of signal per-widget |
-| `connect_draw` → `cairo::Context` | `WidgetExt::snapshot()` with `gtk::Snapshot` (no raw Cairo) |
-| `input_shape_combine_region()` | GTK4 `WidgetExt::set_size_request()` + compositor-only |
-| `gdk::Display::default_seat()` | Different seat/pointer API |
-| `cairo::Region::create()` | Changed to `cairo::Region::new()` (minor) |
-| `pangocairo::show_layout()` | Still works in 0.22 (unchanged) |
-| `gtk::events_pending()` / `main_iteration()` | Replaced by async/event-loop patterns |
-
 ### Alternative: Replace GTK with winit + cairo
 
-Prototyped in `lenzu-prototypes/prototypes/winit-test/`. Would eliminate all GTK
+Prototyped in [`prototypes/winit-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/winit-test). Would eliminate all GTK
 dependencies but requires implementing window management, transparency, cursor
 tracking, and rendering from scratch.
 
@@ -131,14 +138,14 @@ The options are:
 | Option | Effort | Risk | Notes |
 |---|---|---|---|
 | **Stay on 0.18** | None | Low | Works today; dual glib in lockfile is cosmetic |
-| **Migrate to GTK4** | High | High | Major rewrite of main.rs; rejected in planning.md |
+| **Migrate to GTK4** | High | Medium | Prototypes succeeded; test crate on `feat/gtk4-upgrade-test` |
 | **Replace GTK with winit** | Very high | High | Prototyped but bare-bones; full window stack needed |
 
 ### Answer to "is it possible to upgrade?"
 
 **No** — not along the gtk-rs version line. `gtk` 0.18.2 is the terminal release.
-If we want to move off it, the only path is GTK4 or a completely different
-windowing library.
+GTK4 migration is now proven possible (prototypes workspace), with a test crate
+on the `feat/gtk4-upgrade-test` branch to port the main lenzu crate.
 
 ---
 

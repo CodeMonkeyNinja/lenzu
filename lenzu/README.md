@@ -287,7 +287,7 @@ cd /path/to/lenzu
 ./scripts/run.sh
 ```
 
-![Lenzu help screen (Shift+H)](../docs/HELP.png)
+![Lenzu help screen (Shift+H)](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/HELP.png)
 
 Or manually:
 

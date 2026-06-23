@@ -9,51 +9,18 @@ transparent overlay windows, X11 pointer tracking, and related desktop issues.
 
 ## 1. GTK3→GTK4 Migration — Complete
 
-**Status as of 2026-06-21:** All GTK3 workspace members have been ported to GTK4
-(gtk4-rs 0.11.x / glib 0.22.x). The workspace is now fully GTK4.
+**This section has been consolidated into the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations).**
+All workaround tables, official guide cross-references, and migration architectural
+decisions now live there.
 
-**Members migrated:**
-- `jp_ocr_app` (was GTK3 0.18.2) → GTK4 0.11.3, with x11rb pointer tracking
-- `x11-gtk-lens-test` (was `x11-gtk3-lens-test`, GTK3 0.18.2) → GTK4 0.11.3
-- `gtk4_dialogbox_test` (was GTK4 0.8.1) → 0.11.3
-- `gtk_gdk_test` (was GTK4 0.8.1) → 0.11.3
-
-### Key Workarounds Used
-
-| Problem | Workaround |
-|---------|------------|
-| `gdk::Screen::default()` removed — no root window for pointer tracking | Use `x11rb::query_pointer()` on root window directly |
-| `surface.move_to()` not exposed in gtk4-rs 0.11 | Use x11rb `configure_window()` with `ConfigureWindowAux::new().x(y).y(y)` |
-| `surface.input_shape_combine_region()` not exposed | Use `surface.set_input_region(Some(&region))` with empty `Region` |
-| `window.set_keep_above(true)` removed | Use x11rb `_NET_WM_STATE` ClientMessage protocol |
-| `gdk::keys::constants` module is private | Use `gdk::Key::Escape` directly |
-| `pangocairo::show_layout()` not at crate root | Use `pangocairo::functions::show_layout()` |
-| `gdk_pixbuf::CairoContextExt` not at crate root | Use `gdk_pixbuf::prelude::*` and call `cr.set_source_pixbuf()` as trait method |
-| `style_context().add_provider()` deprecated since GTK4 4.10 | Use `gtk4::style_context_add_provider_for_display()` (raw FFI) |
-| `window.display()` ambiguous (`RootExt` vs `WidgetExt`) | Use `gtk4::prelude::RootExt::display(&window)` explicitly |
-| `OnceLock::get_or_try_init()` unstable | Use manual `set()` + `get()` pattern |
-| glib `clone!(@strong/@weak)` syntax removed | Use `clone!(#[strong]/#[weak])` attribute syntax in glib 0.22 |
-| `X11Surface::xid()` returns `u64`, x11rb expects `u32` | Cast: `x11_surface.xid() as u32` |
-| `cairo::Region::create()` returns `Region` not `Option` | Assign directly, no `if let Some` needed |
-| `window.show()` deprecated | Use `window.present()` |
-| `configure_window` API: x11rb 0.13 `ClientMessageEvent::new()` | Takes 4 args (format, window, atom, ClientMessageData), not 8 |
-| `KeyButMask::BUTTON_1` renamed | Use `KeyButMask::BUTTON1` (no underscore) |
-
-### X11 Window Management Architecture
-
-Both lens prototypes use this pattern for X11-specific features:
-
-```
-x11rb connection (singleton via OnceLock)
-  ├── query_pointer() → cursor tracking (replaces GdkScreen)
-  ├── configure_window() → positioning (replaces surface.move_to())
-  ├── _NET_WM_STATE → keep-above (replaces set_keep_above())
-  └── send_event() → stacking (replaces GdkToplevel)
-```
-
-The window XID is obtained from `gdk4_x11::X11Surface::xid()` after
-`window.present()`. An earlier approach using `_NET_WM_PID` scanning of root
-window children proved unreliable (see §5).
+| Migration topic | Location |
+|-----------------|----------|
+| Full workaround table (22 rows) | `GTK-Migrations.md` § Workaround Table |
+| Official guide cross-reference (14 rows) | `GTK-Migrations.md` § Guide Cross-Reference |
+| Key combo architecture (Invariant 5) | `GTK-Migrations.md` § Key Combo Architecture |
+| Summary: GTK3 vs GTK4 per invariant | `GTK-Migrations.md` § Summary Table |
+| Architectural decisions timeline | `GTK-Migrations.md` § Architectural Decisions |
+| Workspace dependency graph | `GTK-Migrations.md` § Workspace Dependency Graph |
 
 ---
 
@@ -182,7 +149,7 @@ borrow is active.
 
 ### 2f. `Session`/Model Loading Must Be Optional
 
-The ONNX detection prototype (`x11-gtk-lens-test`) panicked on startup with
+The ONNX detection prototype ([`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test)) panicked on startup with
 `.expect("No valid .onnx file found (>1MB)!")` when no model file was in cwd.
 Always make model loading graceful:
 
@@ -230,14 +197,14 @@ window's transparent background) with the source colour. Switching back to
 `Operator::Over` after the clear ensures subsequent drawing operations
 composite correctly.
 
-This pattern is used in `jp_ocr_app` and was applied to `x11-gtk-lens-test`
+This pattern is used in [`jp_ocr_app`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/jp_ocr_app) and was applied to [`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test)
 in the same fix.
 
 ---
 
 ### 2h. SCIM Stderr Noise — GTK4 GDK Auto-Launches Broken SCIM
 
-Both `jp_ocr_app` and `x11-gtk-lens-test` print to stderr on every launch:
+Both [`jp_ocr_app`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/jp_ocr_app) and [`x11-gtk-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk-lens-test) print to stderr on every launch:
 
 ```
 Loading socket Config module ...
@@ -327,21 +294,151 @@ uses gtk4 0.11.x / glib 0.22.x ecosystem. These PRs only affect `Cargo.lock`.
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| Pre-2026-04 | GTK4 evaluated and rejected | graphene/gobject dep complexity, API churn, build failures |
+| Pre-2026-04 | GTK4 evaluated and rejected — **moved to** [GTK-Migrations wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations) | graphene/gobject dep complexity, API churn, build failures |
 | 2026-04 | Electron for HUD (not GTK) | X11 transparency works, Web UI flexibility |
-| 2026-06-20 | GTK3 lens prototypes kept on 0.18.x | GdkScreen removal blocks GTK4 migration; GTK3 works for current needs |
+| 2026-06-20 | GTK4 migration issues — **moved to** [GTK-Migrations wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations) | All workaround tables, cross-references, and architectural decisions consolidated there |
 | 2026-06-20 | Shared docs convention established | `lenzu/docs/prototypes-desktop-issues.md` (from here) + `lenzu/docs/lenzu-desktop-issues.md` (from main repo) |
-| 2026-06-21 | **GTK3→GTK4 migration completed** | All 4 GTK members ported to gtk4-rs 0.11.x / glib 0.22.x; x11rb replaces removed GDK APIs for X11-specific window management; both lens prototypes compile and link cleanly |
-| 2026-06-21 | GdkScreen workaround finalized | x11rb `query_pointer()` + `_NET_WM_STATE` + `configure_window()` — stable, X11-only, no GDK dependency for window management |
 | 2026-06-21 | **PID scanning for XID abandoned** | `_NET_WM_PID` on root window children is unreliable (WM reparenting, unmapped windows, timing). Use `gdk4_x11::X11Surface::xid()` after `present()` instead. |
 | 2026-06-21 | **x11rb connection must init gracefully** | `get_or_init(|| connect(None).unwrap())` panics on missing `$DISPLAY`. Use manual `set()` with `bool` return instead. |
 | 2026-06-21 | **`set_window_state`/`surface()` requires realization** | `window.surface()` returns `None` before `window.present()`. All surface/XID access must happen after. |
 | 2026-06-21 | **Unit tests added for known runtime panics** | 9 tests across `jp_ocr_app` (4) and `x11-gtk-lens-test` (5) catch RefCell borrow-across-blocking panics, Pixbuf creation, model-loading graceful failure, and try_borrow pattern — now verifiable in `cargo test` without X11 display. |
 | 2026-06-21 | **`x11-gtk-lens-test` transparent draw fix** | Draw function used `cr.set_source_rgb(0,0,0)` → `paint()`, filling the lens with opaque black and hiding the transparent CSS window background. Changed to `rgba(0,0,0,0)` + `Operator::Source` + switch back to `Over` (matching `jp_ocr_app` pattern). |
 | 2026-06-21 | **SCIM stderr noise identified** | Both lens apps print SCIM init errors on every launch. Traced to GTK4 GDK X11 backend auto-forking `scim-launcher -f x11`. Cosmetic only — app unaffected. `GTK_IM_MODULE` has no effect; suppress via stderr redirect or `apt remove scim`. Documented in §2h. |
+| 2026-06-21 | **Trunk GTK3 dual-glib fix + CI** | `gdk-pixbuf = \"0.19\"` in GTK3 members conflicted with `gdk 0.18`'s internal `gdk-pixbuf 0.18.5`. Pinned to `0.18`. Added GitHub Actions CI (`cargo test --workspace`). Removed all Gemini AI workflows. |
+| 2026-06-21 | **jp_ocr_app spinner lollipop tail fixed** | Cairo `arc()` draws an implicit line from the current path point to the arc start. `show_layout()` leaves the current point at the last glyph, so the arc was connected to it — producing a straight "lollipop tail". Fixed by inserting `cr.new_sub_path()` before `cr.arc()`. See §2i. |
+| 2026-06-21 | **jp_ocr_app white window + frozen spinner during capture fixed** | `flash_alpha=1.0` painted the entire lens area with an opaque white rectangle on every capture, causing the "white window". Additionally, `std::thread::sleep(400ms)` blocked the GTK main loop, preventing the animation timer from firing and keeping the spinner frozen (static). Fixed by removing `flash_alpha` entirely and replacing the blocking sleep with `glib::timeout_add_local(400ms)`. See §2j. |
 
 ---
 
-*This document is written from the `lenzu-prototypes` workspace. Updates flow
-one-way: findings here are appended to this file, then cross-referenced in the
-main repo's `lenzu-desktop-issues.md` as needed.*
+## 2i. Spinner Lollipop Tail — jp_ocr_app (FIXED 2026-06-21)
+
+**Symptom:** The loading spinner in the UI panel appeared distorted — a
+straight line extended from the spinner arc to an off-center point, like
+a lollipop stick.
+
+**Root cause:** Cairo's `cr.arc()` does NOT start a fresh path. If a current
+point exists in the path, `arc()` implicitly draws a straight `line_to()` from
+that point to the arc's start position before drawing the arc itself.
+
+The draw function calls `pangocairo::functions::show_layout()` to render the
+status text (e.g. "CAPTURING...") just before drawing the spinner. PangoCairo's
+`show_layout()` leaves the cairo current point at the last glyph position in the
+layout. The subsequent `cr.arc()` then drew a line from that glyph position back
+to the arc's start, creating the visible tail artifact.
+
+**Fix:**
+
+```rust
+cr.new_sub_path();   // ← break the implicit line-to
+cr.arc(0.0, 0.0, 8.0, 0.0, 1.5 * std::f64::consts::PI);
+```
+
+`cr.new_sub_path()` starts a new sub-path without moving the current point,
+so Cairo has no start point to draw a line from. The same fix applies to any
+`arc()` call that follows text rendering or other drawing that leaves an open
+path.
+
+**Commits:** `be26043` (jp_ocr_app); same pattern fixed in `lenzu` at `75f7dbf`.
+
+---
+
+## 2j. White Window and Frozen Spinner During Capture — jp_ocr_app (FIXED 2026-06-21)
+
+**Symptoms:**
+- The lens window turned solid white for ~160ms whenever a screen capture
+  was triggered.
+- The loading spinner appeared static/frozen during the capturing phase
+  (no rotation), then suddenly jumped to a new angle when the OCR result
+  arrived.
+
+### White window
+
+**Root cause:** `flash_alpha = 1.0` was set immediately after capture
+success, painting a fully opaque white `cr.rectangle()` over the entire
+400×400 lens area (via `cairo::Operator::Over`). The animation timer
+decremented `flash_alpha -= 0.1` per 16ms frame, fading it back to zero
+over ~160ms. During that fade the lens appeared white.
+
+**Fix:** Removed `flash_alpha` entirely — the field was deleted from
+`AppState`, dropped from the draw function, and the animation step removed
+from the 16ms timer. The lens now shows the captured image directly with
+no overlay.
+
+### Frozen spinner
+
+**Root cause:** The capture flow called `std::thread::sleep(400ms)` on the
+main GTK thread to give the compositor time to hide the window before
+`GetImage`. Sleeping on the main thread blocks the glib main loop entirely,
+preventing every registered `glib::timeout_add_local` callback — including
+the 16ms animation timer — from firing. As a result `spinner_angle` was
+never incremented during the entire 400ms wait, so the spinner appeared as
+a static arc.
+
+**Fix:** Replaced the blocking sleep with `glib::timeout_add_local(400ms, ...)`:
+
+```rust
+// Before (blocks main loop — animation timer cannot fire):
+window_poll.set_visible(false);
+while glib::MainContext::default().iteration(false) {}
+std::thread::sleep(Duration::from_millis(400));
+// ... capture, set_visible(true) ...
+
+// After (main loop stays live during the 400ms compositor wait):
+window_poll.set_visible(false);
+while glib::MainContext::default().iteration(false) {}
+glib::timeout_add_local(Duration::from_millis(400), move || {
+    // ... capture, set_visible(true) ...
+    glib::ControlFlow::Break
+});
+```
+
+With the async timer, the main loop keeps running during the 400ms window-hide
+delay: the animation timer fires every 16ms, `spinner_angle` advances, and the
+spinner is already rotating when the window reappears after capture.
+
+**Note:** The `borrow_mut()` scope inside the timeout callback is kept tight —
+state is released before `set_visible(true)` and `queue_draw()` are called,
+per the §2e RefCell scope-guard rule.
+
+**Commits:** `abc70b4`.
+
+---
+
+## 2k. Spinner Does Not Rotate During OCR Wait — jp_ocr_app (TODO)
+
+**Symptom:** The loading spinner shows as a static C/U-shaped arc during
+the "CAPTURING…" / OCR-in-progress phase. `spinner_angle` is incremented
+by the 16ms animation timer and `queue_draw()` is called, but the window
+does not visually update.
+
+**Suspected cause:** The capture flow calls `window.set_visible(false)`
+then `window.set_visible(true)` to hide the window during screen grab.
+The hide/show cycle unmaps and re-maps the GDK surface. After re-map,
+GTK4's frame-clock scheduling may not resume delivering frames to the
+window until some internal threshold is met, causing `queue_draw()` calls
+to be silently dropped or deferred indefinitely.
+
+**Why it works in Lenzu:** The production `lenzu` app avoids
+`set_visible(false/true)` during capture — it moves the window
+off-screen (via x11rb `configure_window`) so the GDK surface is never
+unmapped. `queue_draw()` always hits a live, mapped surface and the frame
+clock keeps ticking.
+
+**Investigation starting points:**
+- Replace `set_visible(false/true)` with `move_window(-2000, -2000)` /
+  `move_window(win_x, win_y)` and add an `is_capturing` guard in the poll
+  timer to prevent the continuous `move_window` loop from overriding the
+  off-screen position.
+- Alternatively, call `window.queue_draw()` AND `area.queue_draw()` (the
+  DrawingArea child) after `set_visible(true)` — GTK4 may not propagate
+  invalidation to children on re-map.
+
+**Tracked in code:** `TODO(proto)` comment in [`prototypes/jp_ocr_app/src/main.rs`](https://github.com/HidekiAI/lenzu-prototypes/blob/trunk/prototypes/jp_ocr_app/src/main.rs)
+next to the `window_anim.queue_draw()` call.
+
+---
+
+*This document lives in `lenzu/docs/` alongside
+[`lenzu-desktop-issues.md`](lenzu-desktop-issues.md). Prototype source code
+referenced here is at
+[github.com/HidekiAI/lenzu-prototypes](https://github.com/HidekiAI/lenzu-prototypes).*

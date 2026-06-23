@@ -2,7 +2,7 @@
 
 > **Status**: Prototype validated — implementation in progress
 > **Created**: 2026-04-04  
-> **Updated**: 2026-04-07 — prototype `prototypes/dbnet-test` validated algorithm and defaults; dilation step added to §4.3; Cargo.toml deps corrected (ort 2.0.0-rc.10, imageproc, no ndarray/half); factory signature extended with dilation/pad params
+> **Updated**: 2026-04-07 — prototype [`prototypes/dbnet-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/dbnet-test) validated algorithm and defaults; dilation step added to §4.3; Cargo.toml deps corrected (ort 2.0.0-rc.10, imageproc, no ndarray/half); factory signature extended with dilation/pad params
 > **Related**: `planning.md` M7 / M7b, `technical-design.md` §3, `lenzu/src/ocr/text_detection.rs`
 
 ---
@@ -189,7 +189,7 @@ imageproc = { version = "0.25", optional = true }
 Build with: `cargo build -p lenzu --features onnx`
 
 > **Note — why not `ndarray` / `half` as separate deps?**  
-> The prototype (`prototypes/dbnet-test`) uses `ort::value::Tensor::from_array` with a raw `Vec<f32>` rather than an `ndarray::Array4`, so `ndarray` and `half` are not required as direct dependencies.  The `ort` crate's own `ndarray` feature is kept to enable its internal ndarray integration.
+> The prototype ([`prototypes/dbnet-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/dbnet-test)) uses `ort::value::Tensor::from_array` with a raw `Vec<f32>` rather than an `ndarray::Array4`, so `ndarray` and `half` are not required as direct dependencies.  The `ort` crate's own `ndarray` feature is kept to enable its internal ndarray integration.
 
 ### 4.2 `OcrRect` struct (`lenzu/src/ocr/ocr_traits.rs`)
 
@@ -1129,7 +1129,7 @@ dependency and does not need to be installed.
 
 ### `ort` and ONNX Runtime
 
-The `ort` crate v2.0.0-rc.12 (same version already used in `prototypes/x11-gtk3-lens-test`)
+The `ort` crate v2.0.0-rc.12 (same version already used in [`prototypes/x11-gtk3-lens-test`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/x11-gtk3-lens-test))
 downloads the pre-built ONNX Runtime shared library from GitHub releases during the
 `cargo build` step. No `apt install` is required.
 

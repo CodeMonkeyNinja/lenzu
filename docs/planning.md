@@ -181,7 +181,7 @@ _Grayscale applies to all captures (local + remote); downscale applies only befo
 ### UI toolkit: GTK3 (final decision)
 
 - **Decision**: GTK3 (`gtk-rs` 0.18) — permanent choice, not a stepping stone to GTK4
-- **Rationale**: GTK4 was evaluated and abandoned — graphene/gobject dep complexity, API churn, prototype build failures. GTK3 provides everything needed and is simpler to build against.
+- **Rationale**: GTK4 was evaluated and abandoned — graphene/gobject dep complexity, API churn, prototype build failures. GTK3 provides everything needed and is simpler to build against. *(GTK4 migration reference consolidated at the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations).)*
 
 ### OCR Backend Selection
 

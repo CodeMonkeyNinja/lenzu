@@ -29,7 +29,7 @@ llama.cpp.
 **Goal**: Test [Umi-OCR](https://github.com/hiroi-sora/Umi-OCR) via Docker HTTP API
 against 3 standard test PNGs.
 
-**Prototype**: `prototypes/umi-ocr-eval/`
+**Prototype**: [`prototypes/umi-ocr-eval`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/umi-ocr-eval)
 
 **Results: 0/3 PASS** (pre-rescale oversized images — yokogaki 711×389, tategaki/tegaki 2760×1504)
 
@@ -50,7 +50,7 @@ Images were rescaled on 2026-04-15 — re-evaluation with smaller inputs pending
 **Goal**: Test [PaddleOCR-VL-For-Manga](https://huggingface.co/adambarbato/PaddleOCR-VL-For-Manga-GGUF)
 via llama.cpp server against the same 3 PNGs.
 
-**Prototype**: `prototypes/paddleocr-vl-manga/`
+**Prototype**: [`prototypes/paddleocr-vl-manga`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/paddleocr-vl-manga)
 
 **Results: 2/3 PASS** (CPU-only, no CUDA toolkit — BF16 on Xeon E5-2670v3; pre-rescale images)
 
@@ -144,5 +144,5 @@ sample-texts 640×349). With the rescaled images:
 | `scripts/setup.sh` | Added CUDA toolkit, PaddleOCR-VL download, --skip-paddleocr |
 | `docs/model-evaluation.md` | Added HuggingFace model links and upgrade path |
 | `docs/planning-ollama-to-llamacpp.md` | New — full Ollama replacement analysis |
-| `prototypes/umi-ocr-eval/` | New — Umi-OCR Docker prototype + results |
-| `prototypes/paddleocr-vl-manga/` | New — PaddleOCR-VL GGUF prototype + results |
+| [`prototypes/umi-ocr-eval`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/umi-ocr-eval) | New — Umi-OCR Docker prototype + results |
+| [`prototypes/paddleocr-vl-manga`](https://github.com/HidekiAI/lenzu-prototypes/tree/trunk/prototypes/paddleocr-vl-manga) | New — PaddleOCR-VL GGUF prototype + results |

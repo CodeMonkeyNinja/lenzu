@@ -1,0 +1,9 @@
+[package]
+name = "gtk4-lens-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Unified on gtk4-rs 0.11.x / glib 0.22.x — no version skew
+gtk4 = { version = "0.11.3", features = ["v4_14"] }
+x11rb = { version = "0.13", features = ["all-extensions"] }

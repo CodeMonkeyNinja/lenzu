@@ -106,6 +106,28 @@ and in `main.js` forward the UDP JSON to the renderer when `type === 'hide'` or 
 
 ---
 
+## 2.5. Shift+Arrow keys to resize capture window (P2)
+
+**Desired behavior:** While holding Shift, the Arrow keys resize the lens capture rectangle:
+- `Shift+←` / `Shift+→` — widen / narrow the capture width
+- `Shift+↑` / `Shift+↓` — increase / decrease the capture height
+
+Each keypress adjusts by a fixed step (e.g. 10px). The lens window is redrawn to reflect the new size. The adjusted dimensions persist in memory for the session (configurable via `lenzu_config.json` with a `lens_size_step: u32` field).
+
+**Why this matters:** Users currently resize by editing `lenzu_config.json` or accepting the default. Interactive resize via keyboard makes the lens adaptable per-task — narrow for text columns, wide for manga spreads.
+
+**Implementation sketch:** The key combo detection already exists (X11 passive key grabs for Shift+ESC/H/Tab in the 16ms timer). The existing `setup_key_grabs()` and `poll_key_events()` infrastructure can be extended:
+1. Register passive grabs for Arrow keys (keycodes: Left=113, Up=111, Right=114, Down=116) with `ShiftMask` + lock variants.
+2. In the poll timer, detect `shift_held && arrow_key_event` → adjust `lens_width` / `lens_height` by `lens_size_step`.
+3. Re-`configure_window()` the lens X11 window to the new dimensions and call `queue_draw()`.
+
+**Edge cases:**
+- Clamp to minimum size (e.g. 100×50) and maximum (e.g. monitor dimensions).
+- If the lens moves off-screen during resize, the standard `move_window(-10000,-10000)` hide logic continues to work unchanged.
+- Arrow key presses should be debounced the same way as ESC/H/Tab (200ms) to prevent auto-repeat from rapidly resizing.
+
+---
+
 ## 3. Spinner "line" artifact on Shift+Click (P3 — cosmetic)
 
 **Desired behavior:** The loading spinner should be a clean rotating arc with no stray line.
