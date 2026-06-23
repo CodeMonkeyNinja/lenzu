@@ -895,6 +895,11 @@ fn main() -> glib::ExitCode {
                 // (is_loading stays true) so the user can't stack new requests.
                 if !meta.preview {
                     s.is_loading = false;
+                    // Display window starts from when the result is ready, not from
+                    // click time. Without this reset, fast OCR (< result_display_secs)
+                    // keeps show_lens=true for several seconds after the result is
+                    // already visible, making the lens appear "stuck".
+                    s.last_capture = Instant::now();
                 }
 
                 let combined_english = results
@@ -954,6 +959,7 @@ fn main() -> glib::ExitCode {
             }
             Err(e) => {
                 s.is_loading = false;
+                s.last_capture = Instant::now();
                 eprintln!("[OCR] API/parse error: {}", e);
                 s.status = format!("API Error: {}", e);
             }
