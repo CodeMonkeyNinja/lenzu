@@ -22,14 +22,11 @@ send_hud() {
     printf '%s' "$1" | nc -u -w1 127.0.0.1 "$UDP_PORT"
 }
 
-# Require picom — xfwm4's compositor causes ghost pixels; Electron 36–41 also
-# has an ARGB regression.  Without picom the overlay will not be transparent.
+# Electron 42+ fixed the xfwm4 ghost-pixel issue — picom is no longer needed.
+# This check is informational; the HUD will test transparency at runtime.
 if ! pgrep -x picom >/dev/null; then
-    echo "WARNING: picom is not running. Start it first:"
-    echo "  xfconf-query -c xfwm4 -p /general/use_compositing -s false"
-    echo "  picom --backend glx --no-use-damage &"
-    echo "EXITING! — transparency will not work correctly."
-    exit 1
+    echo "NOTE: picom not running — ensure xfwm4 compositing is enabled:"
+    echo "    xfconf-query -c xfwm4 -p /general/use_compositing -s true"
 fi
 
 # Kill any existing HUD instances and free the UDP port
