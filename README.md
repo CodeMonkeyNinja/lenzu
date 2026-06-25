@@ -4,7 +4,7 @@
 
 **Docs:** [Wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki) · [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
 
-**Linux only** (X11, GTK3). No Windows or macOS support.  Note that according to [Microsoft WSLG](https://github.com/microsoft/wslg), they claim you can run X11 (and Wayland) on Windows, I've no garauntees, but if they claim it can run [GIMP](https://github.com/GNOME/gimp) (Linux version) on WSLG, I'm sure you can run Lenzu (GIMP is GTK4 now right?)
+**Linux only** (X11, GTK4). No Windows or macOS support.  Note that according to [Microsoft WSLG](https://github.com/microsoft/wslg), they claim you can run X11 (and Wayland) on Windows, I've no garauntees, but if they claim it can run [GIMP](https://github.com/GNOME/gimp) (Linux version) on WSLG, I'm sure you can run Lenzu (GIMP is GTK4 now right?)
 
 Desktop OCR lens — a transparent floating window that follows the mouse cursor, captures the region under it on demand, and sends it to a local or remote LLM for OCR and translation. Results appear in a separate transparent overlay HUD (`lenzu_server`).
 
@@ -29,12 +29,12 @@ _Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the fu
 
 ![English translation result](assets/Screenshot-EN.png)
 
-> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK3** (`gtk-rs` 0.18) on Linux/X11. GTK4 was evaluated and abandoned due to integration complexity — GTK3 provides everything needed and is simpler to build against. See [Technical Design](https://github.com/CodeMonkeyNinja/lenzu/wiki/technical-design) for current architecture.
+> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK4** (`gtk4-rs` 0.11) on Linux/X11, with X11 passive grabs (`x11rb`) replacing GTK4's focus-gated event controllers. See [Technical Design](https://github.com/CodeMonkeyNinja/lenzu/wiki/technical-design) and [GTK-Migrations](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations) for current architecture.
 
 ## Architecture (Current)
 
 ```
-lenzu (GTK3 client)               lenzu_server (Electron)
+lenzu (GTK4 client)               lenzu_server (Electron)
   floating lens window     UDP     transparent overlay HUD
   X11 root capture       ──────►  renders translated text
   multi-tier OCR backend           ArrowUp/Down moves position
@@ -94,7 +94,7 @@ See [OCR Accuracy Scores](https://github.com/CodeMonkeyNinja/lenzu/wiki/lenzu/sc
 
 ## Libraries & Dependencies
 
-- [`gtk` 0.18](https://crates.io/crates/gtk) — GTK3 bindings (gtk-rs). **GTK3, not GTK4.**
+- [`gtk4` 0.11](https://crates.io/crates/gtk4) — GTK4 bindings (gtk4-rs).
 - [`x11rb`](https://crates.io/crates/x11rb) — X11 protocol (screen capture)
 - [`cairo-rs`](https://crates.io/crates/cairo-rs) — 2D drawing
 - [`pango`](https://crates.io/crates/pango) / [`pangocairo`](https://crates.io/crates/pangocairo) — text layout and CJK rendering
@@ -126,7 +126,7 @@ Short answer: WebKit2GTK has an unfixable alpha-compositing bug on X11, raw GTK 
 ### What was tried (see `HidekiAI/lenzu-prototypes` archive)
 
 - **Tauri + WebKit2GTK** — abandoned. WebKit's dirty-rect compositor treats `transparent → transparent` as a no-op and skips writing vacated alpha pixels back to the X11 surface. When shorter text replaces longer text the old characters stay on screen until an `Alt+Tab` forces a repaint. Three separate mitigations (near-zero background, body-background tick-toggle, synthetic X11 Expose event) all failed under different timing conditions. Root cause is architectural in WebKit's software renderer — not fixable from application code.
-- **GTK3 + Cairo** — doesn't have the dirty-rect bug (the Lenzu lens window is itself a transparent GTK3 + Cairo window and works fine), but see the capability comparison below for why it falls short for the HUD.
+- **GTK4 + Cairo** — doesn't have the dirty-rect bug (the Lenzu lens window itself uses GTK4 + Cairo `set_draw_func` and works fine), but see the capability comparison below for why it falls short for the HUD.
 
 ### Why GTK + Cairo can't match Electron here
 
@@ -136,7 +136,7 @@ Short answer: WebKit2GTK has an unfixable alpha-compositing bug on X11, raw GTK 
 
 Electron has the full web animation stack: CSS keyframes, `requestAnimationFrame` canvas sprites, GIF/WebP playback, **Lottie** (Adobe After Effects exported to JSON — the standard format for Clippy-grade rigged character animations), Spine 2D / DragonBones web runtimes for bone animation, WebGL for anything 3D. Reaction states wire up in a few lines of JS.
 
-**Click-through with selective interception.** GTK uses `input_shape_combine_region` to define an X11 input region — static, synchronous, has to be manually recalculated and re-applied every frame when the avatar changes shape.
+**Click-through with selective interception.** GTK uses `surface.set_input_region()` to define an X11 input region — static, synchronous, has to be manually recalculated and re-applied every frame when the avatar changes shape.
 
 Electron has `setIgnoreMouseEvents(true, { forward: true })` which passes all clicks through to whatever is underneath, and you toggle it dynamically from a `mousemove` listener:
 
@@ -208,7 +208,7 @@ Tracked in [GitHub Issues](https://github.com/CodeMonkeyNinja/lenzu/issues).
 | DBNet ONNX model (`stabrise-text_detection_dbnet_ml_v02_model.onnx`) | **AGPL-3.0** — shipped as a separate sidecar, not bundled in the MIT AppImage |
 | manga-ocr ONNX models (`mayocream/manga-ocr-onnx`)                   | Apache-2.0                                                                    |
 | MeCab + IPADIC dictionary                                            | BSD-3-Clause / BSD-style (system package, dynamically linked)                 |
-| GTK3, Cairo, Pango, GLib                                             | LGPL-2.1+ (system packages, dynamically linked)                               |
+| GTK4, Cairo, Pango, GLib                                             | LGPL-2.1+ (system packages, dynamically linked)                               |
 | Electron / Chromium                                                  | MIT + BSD variants (see Electron's own license)                               |
 
 Full per-crate and per-dependency attribution is in [`lenzu/NOTICES.md`](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/lenzu/NOTICES.md) (also accessible in-app via **Shift+H → About**).

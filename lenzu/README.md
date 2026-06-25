@@ -3,7 +3,7 @@
 Lenzu is a high-performance, real-time screen-capture and OCR utility written in Rust. It provides a "magnifying lens" that follows the mouse cursor, allowing the user to capture and translate text from any window (including browsers and hardware-accelerated apps) using a multi-tier LLM backend chain: local Ollama (primary, free) → free OpenRouter tier → paid remote (Gemini 2.0 Flash).
 
 Lenzu is two processes:
-- **`lenzu`** — the GTK3 lens window; does capture, OCR, and manages the overlay lifecycle
+- **`lenzu`** — the GTK4 lens window; does capture, OCR, and manages the overlay lifecycle
 - **`lenzu_server`** — a transparent Electron overlay window that renders the translated text on screen
 
 `lenzu` auto-spawns `lenzu_server` on startup and kills it on exit. You only need to run one command.
@@ -16,7 +16,7 @@ Lenzu is two processes:
 - **Hardware Acceleration Bypass**: Successfully captures text from GPU-accelerated browsers (like Yahoo.co.jp news) that traditional screenshot tools often miss.
 - **Pixel-Perfect Alignment**: The capture area is mathematically centered on the mouse cursor, ensuring the boundary box perfectly matches the OCR input.
 
-### 2. UI & UX (GTK3 + Cairo + Pango)
+### 2. UI & UX (GTK4 + Cairo + Pango)
 
 - **Dynamic Lens**: A floating window that follows the cursor smoothly (default 400×400px).
 - **Transparency & Alpha Support**: Uses RGBA visuals for a modern "frosted glass" UI panel with 85% opacity.
@@ -42,7 +42,7 @@ Lenzu is two processes:
 | Technology | Role | Notes |
 |---|---|---|
 | **Rust** (Edition 2021) | Primary language — client binary | All runtime code; no Python |
-| **GTK 3** (`gtk-rs` 0.18) | Lens window UI | Fixed at GTK3; GTK4 evaluated and rejected |
+| **GTK 4** (`gtk4-rs` 0.11) | Lens window UI | GTK4 with x11rb fallback for X11-specific features (override_redirect, passive input grabs) |
 | **Cairo** (`cairo-rs`) | 2D drawing, transparency | Flash effect, capture border |
 | **Pango** | CJK text layout and rendering | Prevents "tofu" boxes for Japanese |
 | **x11rb** | X11 screen capture | Captures GPU-accelerated windows correctly; root-window pixel-read approach inspired by [xfce4-screenshooter](https://gitlab.xfce.org/apps/xfce4-screenshooter) |
@@ -103,7 +103,7 @@ Hepburn converter to produce romaji — no kakasi CLI dependency needed.
 |---|---|
 | **Cargo** | Build system; manages all Rust deps |
 | **pnpm** | Node package manager for `lenzu_server` |
-| **`libgtk-3-dev`**, `libcairo2-dev`, `libpango1.0-dev` | System headers (Debian/Ubuntu) |
+| **`libgtk-4-dev`**, `libcairo2-dev`, `libpango1.0-dev` | System headers (Debian/Ubuntu) |
 | **`mecab`**, `mecab-ipadic-utf8`, `mecab-naist-jdic` | MeCab morphological analyzer + UTF-8 dictionaries (furigana/romaji) |
 | `fonts-noto-cjk`, `fonts-ipafont-gothic` | CJK font rendering |
 
@@ -266,8 +266,8 @@ local timeout.
 ### Prerequisites
 
 ```bash
-# System dependencies (GTK3 + capture stack + MeCab; no WebKit needed — Electron bundles its own Chromium)
-sudo apt install build-essential pkg-config libgtk-3-dev libcairo2-dev libpango1.0-dev \
+# System dependencies (GTK4 + capture stack + MeCab; no WebKit needed — Electron bundles its own Chromium)
+sudo apt install build-essential pkg-config libgtk-4-dev libcairo2-dev libpango1.0-dev \
                  libgdk-pixbuf-2.0-dev libx11-dev libssl-dev \
                  mecab mecab-ipadic-utf8 mecab-naist-jdic \
                  fonts-noto-cjk fonts-ipafont-gothic
