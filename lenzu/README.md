@@ -27,7 +27,7 @@ Lenzu is two processes:
 
 - **Transparent Electron window** pinned to the bottom of the screen — results appear as subtitles.
 - **Configurable render mode**: show `english`, `furigana`, `romaji`, `original`, `all`, or `debug`.
-- **UDP IPC**: client sends text datagrams to server on loopback — fire-and-forget, no blocking.
+- **gRPC + UDP fallback**: client sends text via gRPC (port UDP+1); falls back to UDP silently if gRPC is unavailable.
 
 ### 4. Core Logic & Threading
 
@@ -314,7 +314,7 @@ cargo run -p lenzu
 
 ## ⚙️ Configuration (`lenzu_config.json`)
 
-Optional file in the working directory. All fields have defaults if the file is absent or a field is omitted. This is the client-side config; the Electron HUD reads `lenzu_server/src/config.json` for window styling and UDP bind defaults — when the client spawns the HUD it sets `LENZU_OVERLAY_UDP_PORT` so the port matches `overlay_udp_port`.
+Optional file in the working directory. All fields have defaults if the file is absent or a field is omitted. This is the client-side config; the Electron HUD reads its own `hud_config.json` for window styling and UDP bind defaults — when the client spawns the HUD it sets `LENZU_OVERLAY_UDP_PORT` so the port matches `overlay_udp_port`.
 
 ```jsonc
 {
@@ -468,9 +468,4 @@ cargo run -p lenzu --bin ocr-test -- --image assets/Unit-test-sample-texts.png
 OPENROUTER_API_KEY=sk-… cargo run -p lenzu --bin ocr-test -- --image assets/Unit-test-sample-texts.png --remote
 ```
 
-## 🏗 Future Context for Next Session
 
-- **Alignment Status**: The math for `win_x`/`win_y` is 1:1 with the capture box.
-- **Threading Status**: `glib` channels keep GTK objects on the main thread; API calls on background thread.
-- **Prompting**: Base prompt is language-agnostic; language-specific extras go in `translate_extra_prompt`.
-- **Process Lifecycle**: `lenzu` spawns `lenzu_server` via `std::process::Child`; killed on ESC or window close.

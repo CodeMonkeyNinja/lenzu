@@ -1,22 +1,11 @@
-# electron-translucent-desktop-overlay
+# lenzu-hud — Electron transparent overlay HUD
 
-A **transparent, HUD-like desktop overlay** for Linux that displays text
-messages received over **UDP** as closed-caption / subtitle lines.  The
-overlay is click-through (does not obstruct any other application), always
-on top, and fully configurable for position, translucency and font size.
+A transparent, click-through desktop overlay that displays OCR and translation
+results as subtitles.  Receives text over **gRPC** (primary) with **UDP** fallback,
+both on loopback.
 
-> Replaces the deprecated
-> [tauri-translucent-desktop-overlay](https://github.com/HidekiAI/tauri-translucent-desktop-overlay)
-> (Tauri + WebKit2GTK). WebKit2GTK does not correctly composite ARGB windows on
-> X11 — stale alpha pixels accumulate as "ghost text" on every update, and no
-> workaround fully eliminates it. Electron (Chromium) composites ARGB correctly.
->
-> **Known limitation (Electron 41+ / X11):** A thin white titlebar strip may
-> appear at the top of the window despite `frame: false`. Mitigated with
-> `type: 'toolbar'` + `titleBarStyle: 'hidden'` but not fully eliminated on all
-> compositor/WM combinations.
-
-![simplescreenrecorder-2026-03-23_18 57 28](https://github.com/user-attachments/assets/b65d6be5-2592-48b9-858d-998f8c873cd8)
+Part of the [Lenzu](https://github.com/CodeMonkeyNinja/lenzu) project — the GTK4
+lens client (`lenzu`) auto-spawns and manages this process.
 
 ---
 
@@ -24,160 +13,180 @@ on top, and fully configurable for position, translucency and font size.
 
 | Feature | Detail |
 |---|---|
-| Transparent / translucent window | `opacity` config (0.0 – 1.0) |
-| Click-through | Will not intercept mouse events |
-| Position control | `bottom-center`, `top-center`, or custom `x`/`y` |
-| Font size | `fontSize` config (pixels) |
-| UDP input | Default port **5005** — plain text or JSON |
-| Runtime reconfiguration | Send a JSON `config` command over UDP |
-| Max visible lines | Oldest lines scroll off automatically |
-| Auto-dismiss | Optional `displayDuration` (ms) per line |
+| Transparent window | RGBA compositing via Electron / Chromium |
+| Click-through | Mouse events pass to windows underneath |
+| Position control | `top` or `bottom` screen edge; toggle with ArrowUp |
+| gRPC API | `SendText`, `MoveWindow`, `Shutdown` RPCs (port UDP+1) |
+| UDP fallback | JSON datagrams on `udp_port` when gRPC unavailable |
+| Effect-TS pipeline | Schema-validated config, Queue-based dispatch, Layer DI |
+| Render modes | original, english, furigana, romaji, all, debug |
 
 ---
 
 ## Prerequisites
 
-- **Node.js** ≥ 18
-- A compositing window manager on Linux (e.g. GNOME, KDE Plasma, XFCE with
-  xfwm4 compositing enabled) so that the transparent Electron window is
-  actually composited.
+- **Node.js** ≥ 22 (see `.nvmrc`)
+- **pnpm** (package manager)
+- A **compositing window manager** on X11 (GNOME, KDE, XFCE with xfwm4 compositing)
+- **libx11-dev** (`apt install libx11-dev`) — for X11 override_redirect helper
 
 ---
 
-## Installation
+## Setup
 
 ```bash
-npm install
+pnpm install
+pnpm run build
 ```
+
+The build step compiles:
+- TypeScript → JavaScript via esbuild (3 entry points: `main.ts`, `preload.ts`, `renderer/app.ts`)
+- C helper `scripts/hud-set-override-redirect.c` → binary (for X11 decoration removal)
 
 ---
 
 ## Running
 
-### Standard (Wayland / GNOME / KDE)
+### Spawned by Lenzu (normal usage)
+
+The GTK4 client auto-spawns this process.  Just run the client:
 
 ```bash
-npm start
+cd /path/to/lenzu
+./scripts/run.sh
 ```
 
-### X11 with compositing (XFCE / xfwm4)
-
-Enable xfwm4 compositing (the ghost-pixel issue with Electron 36–41 is fixed
-in 42+ — no separate picom needed):
+### Standalone (development)
 
 ```bash
-xfconf-query -c xfwm4 -p /general/use_compositing -s true
-```
+# Start the HUD (terminal 1)
+cd lenzu_server
+GTK_CSD=0 node_modules/.bin/electron dist/main.js
 
-Pass `--enable-transparent-visuals` so Chromium picks up a 32-bit visual:
-
-```bash
-npm run start:x11
+# Send test messages (terminal 2)
+node test_sender.js
 ```
 
 ---
 
-## Sending messages
+## Configuration (`hud_config.json`)
 
-Any UDP client can send text to port **5005** (localhost by default).
-
-### Plain text
-
-```bash
-echo -n "Hello, World!" | nc -u -w1 127.0.0.1 5005
-```
-
-### JSON protocol
-
-All JSON messages must be sent as a single UTF-8 UDP datagram.
-
-#### Display a message
-
-```json
-{ "type": "message", "text": "Caption text here" }
-```
-
-#### Update config at runtime
-
-```json
-{
-  "type": "config",
-  "settings": {
-    "fontSize": 32,
-    "opacity": 0.7,
-    "position": "top-center",
-    "textColor": "#FFFF00",
-    "backgroundColor": "#00000099",
-    "maxLines": 3,
-    "displayDuration": 4000
-  }
-}
-```
-
-#### Clear all lines
-
-```json
-{ "type": "clear" }
-```
-
-#### Quit the overlay
-
-```json
-{ "type": "quit" }
-```
-
----
-
-## Configuration (`src/config.json`)
-
-Edit `src/config.json` to change the defaults before launch:
+Optional file in `lenzu_server/` root.  Missing fields fall back to defaults.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `udpPort` | number | `5005` | UDP port to listen on |
-| `udpBindAddress` | string | `"127.0.0.1"` | Address to bind the UDP server to |
-| `position` | string | `"bottom-center"` | `"bottom-center"` \| `"top-center"` \| `"custom"` |
-| `x` | number\|null | `null` | Window X when `position="custom"` |
-| `y` | number\|null | `null` | Window Y when `position="custom"` |
-| `opacity` | number | `0.85` | Window opacity (0.0 – 1.0) |
-| `fontSize` | number | `24` | Caption font size in px |
-| `maxLines` | number | `5` | Maximum visible caption lines |
-| `textColor` | string | `"#FFFFFF"` | CSS colour for caption text |
-| `backgroundColor` | string | `"#00000066"` | CSS colour for caption background |
-| `width` | number | `800` | Window width in px |
 | `height` | number | `200` | Window height in px |
-| `displayDuration` | number | `0` | Auto-dismiss each line after N ms (`0` = never) |
+| `background_opacity` | number | `0.72` | Background opacity (0.0–1.0) |
+| `text_color` | string | `"#f5e642"` | Caption text colour (CSS hex) |
+| `font_size_pt` | number | `24` | Caption font size in points |
+| `min_font_size_pt` | number | `0` | Minimum font size (0 = no shrink) |
+| `bottom_margin` | number | `50` | Distance from screen bottom edge (px) |
+| `udp_port` | number | `7331` | UDP listen port |
+| `default_text` | string | `"Hello world, Hello Shiroe!"` | Startup placeholder text |
+
+The gRPC port is `udp_port + 1` (default 7332), overridable via
+`LENZU_OVERLAY_GRPC_PORT` env var.
 
 ---
 
-## Test sender
+## Protocol
 
-A helper script sends a sequence of demo messages and runtime config changes:
+### gRPC (port 7332, primary)
 
-```bash
-node test_sender.js [port] [host]
-# e.g.
-node test_sender.js 5005 127.0.0.1
-```
+Three RPCs defined in `proto/lenzu_hud.proto` (service `LenzuHud`):
+
+| RPC | Request | Effect |
+|---|---|---|
+| `SendText` | `TextMessage { text }` | Display text in HUD |
+| `MoveWindow` | `WindowPosition { pos }` | Reposition to `"top"` or `"bottom"` |
+| `Shutdown` | `Empty` | Graceful quit |
+
+### UDP (port 7331, fallback)
+
+JSON datagrams accepted when gRPC is unavailable:
+
+| type | Fields | Effect |
+|---|---|---|
+| `message` | `text: string` | Display text in HUD |
+| `plaintext` | `text: string` | Display text in HUD |
+| `position` | `pos: "top" \| "bottom"` | Reposition overlay |
+| `shutdown` | *(none)* | Quit |
+
+Unparseable UDP payloads are treated as `{ type: "plaintext", text: "<raw>" }`.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  Electron main process  (src/main.js)       │
-│  ┌──────────┐   IPC (hud:message)           │
-│  │UDP server│ ──────────────────────────►   │
-│  │ dgram    │   IPC (hud:config)            │
-│  │ :5005    │ ──────────────────────────►   │
-│  └──────────┘   IPC (hud:clear)             │
-│                                             │
-│  BrowserWindow — transparent, frameless,   │
-│  always-on-top, click-through              │
-│       │  (preload.js / contextBridge)       │
-│       ▼                                     │
-│  Renderer (src/renderer.js + index.html)   │
-│  Caption line queue displayed as subtitles │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Electron Main Process (src/main.ts)                             │
+│                                                                  │
+│  Effect.runPromise :: provide(AppLayer)                          │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐   │
+│  │ HudConfigLive     │  │ UdpSocketLive    │  │ gRPC server   │   │
+│  │ hud_config.json   │  │ dgram udp4       │  │ lenzu_hud.proto│   │
+│  │ Schema.decode     │  │ Queue.offer(cmd)  │  │ 127.0.0.1:7332│   │
+│  └───────┬──────────┘  └────────┬─────────┘  └───────┬───────┘   │
+│          └── Layer.provideMerge ─┘                    │           │
+│                        │                              │           │
+│                        ▼                              │           │
+│          ┌──────────────────────────┐                │           │
+│          │  Effect.forever(Queue    │◄───────────────┘           │
+│          │  .take) → processMessage │                            │
+│          │  "message" → sendText()  │                            │
+│          │  "position"→ reposition()│                            │
+│          │  "shutdown" → app.quit() │                            │
+│          └────────┬─────────────────┘                            │
+│                   │                                              │
+│  ┌────────────────▼──────────────────────────────────────────┐   │
+│  │  BrowserWindow (transparent, frameless, alwaysOnTop)       │   │
+│  │  · webContents.send("hud-text-changed")                    │   │
+│  │  · IPC: get-config, move-window                            │   │
+│  │  · X11 override_redirect via C helper (decoration removal) │   │
+│  └──────────────────────┬─────────────────────────────────────┘   │
+│                         │ preload.ts (contextBridge)               │
+│                         ▼                                          │
+│  ┌──────────────────────────────────────────────────────────┐     │
+│  │  Renderer (src/renderer/app.ts) — effect-TS               │     │
+│  │  · SynchronizedRef<RendererState>                         │     │
+│  │  · Queue → renderText() into #subtitle-text               │     │
+│  │  · ArrowUp/Down → IPC move-window (top/center/bottom)     │     │
+│  │  · CSS: rgba background, text-shadow                     │     │
+│  └──────────────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Testing
+
+```bash
+pnpm vitest
+```
+
+Test files in `src/__tests__/`:
+
+| File | Tests |
+|---|---|
+| `config.test.ts` | Config loading, Schema decode, defaults merge |
+| `dispatch.test.ts` | `processMessage` routing (message/position/shutdown) |
+| `grpc-handlers.test.ts` | `handleSendText` with test layers |
+| `composition.test.ts` | Layer wiring end-to-end |
+| `window-position.test.ts` | Top/center/bottom position math |
+
+---
+
+## X11 notes
+
+- **Client-side decorations**: `GTK_CSD=0` env var disables them for a cleaner frameless window.
+- **override_redirect**: The C helper (`scripts/hud-set-override-redirect.c`) removes X11 window decorations that Electron cannot hide. Compiled via `build.mjs`; non-fatal if `libx11-dev` is missing.
+- **Transparency**: Requires a compositing window manager. XFCE users enable with `xfconf-query -c xfwm4 -p /general/use_compositing -s true`.
+
+---
+
+## Packaging
+
+```bash
+pnpm run deb    # electron-builder → dist-deb/ (deb + AppImage)
 ```
