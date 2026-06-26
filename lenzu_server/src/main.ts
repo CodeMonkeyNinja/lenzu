@@ -44,27 +44,33 @@ function createMainWindow(config: HudConfig): BrowserWindow {
     },
   });
 
-  const buf = win.getNativeWindowHandle();
-  const winIdNum =
-    buf.length >= 8 ? Number(buf.readBigUInt64LE(0)) : buf.readUInt32LE(0);
-  try {
-    const helper = app.isPackaged
-      ? path.join(process.resourcesPath, "hud-set-override-redirect")
-      : path.join(__dirname, "hud-set-override-redirect");
-    execSync(`"${helper}" ${winIdNum}`);
-  } catch (e) {
-    console.warn(
-      "[HUD] override_redirect helper failed (non-fatal):",
-      (e as Error).message,
-    );
-  }
-
   win.loadFile(path.join(__dirname, "renderer/index.html"));
   win.once("ready-to-show", () => win.show());
   win.on("closed", () => app.quit());
 
   return win;
 }
+
+const setOverrideRedirect = (win: BrowserWindow): Effect.Effect<void> => {
+  const buf = win.getNativeWindowHandle();
+  const winIdNum =
+    buf.length >= 8 ? Number(buf.readBigUInt64LE(0)) : buf.readUInt32LE(0);
+  return Effect.try({
+    try: () => {
+      const helper = app.isPackaged
+        ? path.join(process.resourcesPath, "hud-set-override-redirect")
+        : path.join(__dirname, "hud-set-override-redirect");
+      execSync(`"${helper}" ${winIdNum}`);
+    },
+    catch: (e) => e as Error,
+  }).pipe(
+    Effect.catchAll((e) =>
+      Effect.logWarning(
+        `override_redirect helper failed (non-fatal): ${e.message}`,
+      ),
+    ),
+  );
+};
 
 function positionWindow(
   position: WindowPosition,
@@ -92,6 +98,7 @@ const program = Effect.gen(function* () {
   yield* Effect.promise(() => app.whenReady());
 
   const mainWindow = createMainWindow(config);
+  yield* setOverrideRedirect(mainWindow);
   positionWindow("bottom", mainWindow, config);
 
   ipcMain.handle("get-config", () => config);

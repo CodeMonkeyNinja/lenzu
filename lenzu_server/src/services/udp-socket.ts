@@ -1,4 +1,4 @@
-import { Context, Layer, Effect, Queue } from "effect";
+import { Context, Layer, Effect, Queue, Scope } from "effect";
 import * as dgram from "dgram";
 import { Schema } from "effect";
 import { HudConfigService } from "./hud-config.js";
@@ -36,12 +36,16 @@ export class UdpSocketTag extends Context.Tag("UdpSocket")<
 >() {}
 
 export const UdpSocketLive: Layer.Layer<UdpSocketTag, never, HudConfigService> =
-  Layer.effect(
+  Layer.scoped(
     UdpSocketTag,
     Effect.gen(function* () {
       const config = yield* HudConfigService;
       const queue = yield* Queue.unbounded<UdpMessage>();
-      const socket = dgram.createSocket("udp4");
+
+      const socket = yield* Effect.acquireRelease(
+        Effect.sync(() => dgram.createSocket("udp4")),
+        (sock) => Effect.sync(() => sock.close()),
+      );
 
       socket.on("message", (msg) => {
         const raw = msg.toString().trim();
@@ -55,11 +59,16 @@ export const UdpSocketLive: Layer.Layer<UdpSocketTag, never, HudConfigService> =
 
       socket.on("error", (err) => {
         console.error("UDP error:", err);
-        socket.close();
       });
 
       yield* Effect.async<void>((resume) => {
+        const onBindError = (err: Error) => {
+          socket.removeListener("error", onBindError);
+          resume(Effect.die(err));
+        };
+        socket.once("error", onBindError);
         socket.bind(config.udp_port, "127.0.0.1", () => {
+          socket.removeListener("error", onBindError);
           const addr = socket.address();
           console.log(`HUD listening on UDP ${addr.address}:${addr.port}`);
           resume(Effect.void);
@@ -71,7 +80,7 @@ export const UdpSocketLive: Layer.Layer<UdpSocketTag, never, HudConfigService> =
   );
 
 export const UdpSocketTest = (messages: UdpMessage[]) =>
-  Layer.effect(
+  Layer.scoped(
     UdpSocketTag,
     Effect.gen(function* () {
       const queue = yield* Queue.unbounded<UdpMessage>();

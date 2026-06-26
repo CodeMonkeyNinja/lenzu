@@ -70,13 +70,13 @@ export function loadConfigSync(configPath: string): HudConfig {
         Effect.succeed(DEFAULT_CONFIG),
       ),
       Effect.catchTag("ConfigParseError", (e) =>
-        Effect.sync(() => {
-          console.warn(
-            "[HUD] hud_config.json parse error — using defaults:",
-            e.cause,
-          );
-          return DEFAULT_CONFIG;
-        }),
+        Effect.succeed(DEFAULT_CONFIG).pipe(
+          Effect.tap(
+            Effect.logWarning(
+              `hud_config.json parse error — using defaults: ${e.cause}`,
+            ),
+          ),
+        ),
       ),
     ),
   );

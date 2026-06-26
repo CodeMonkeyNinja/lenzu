@@ -15,10 +15,13 @@ export const HudConfigLive = (appPath: string) =>
         Effect.succeed(DEFAULT_CONFIG),
       ),
       Effect.catchTag("ConfigParseError", (e) =>
-        Effect.sync(() => {
-          console.warn("[HUD] config parse error — using defaults:", e.cause);
-          return DEFAULT_CONFIG;
-        }),
+        Effect.succeed(DEFAULT_CONFIG).pipe(
+          Effect.tap(
+            Effect.logWarning(
+              `config parse error — using defaults: ${e.cause}`,
+            ),
+          ),
+        ),
       ),
     ),
   );

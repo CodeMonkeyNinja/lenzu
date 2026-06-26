@@ -22,7 +22,7 @@ export function processMessage(
       case "position":
         return yield* onPosition(cmd.pos);
       case "shutdown":
-        console.log("[UDP] Received shutdown command, quitting...");
+        yield* Effect.logInfo("[UDP] Received shutdown command, quitting...");
         yield* hudWindow.close();
         return yield* onShutdown;
     }
