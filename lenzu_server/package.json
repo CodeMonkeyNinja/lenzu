@@ -34,7 +34,7 @@
     "@types/node": "^25.9.2",
     "electron": "42.3.3",
     "electron-builder": "^26.15.2",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "vitest": "^4.1.8"
   },
   "build": {
