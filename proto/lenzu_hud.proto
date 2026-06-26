@@ -1,22 +1,62 @@
+// Lenzu HUD — gRPC service definition.
+//
+// Transport: gRPC on LENZU_OVERLAY_GRPC_PORT (= UDP port + 1), with silent
+// UDP fallback when the gRPC server is unreachable (e.g. during startup).
+// Both client (Rust, tonic) and server (TypeScript, @grpc/grpc-js) share
+// this single proto file; codegen is via tonic-build in lenzu/build.rs.
+//
+// The HUD (Heads-Up Display) is an Electron transparent overlay window that
+// renders OCR/translation results as formatted text. The GTK4 lens client
+// calls these RPCs to push text, reposition the overlay, or shut it down.
+
 syntax = "proto3";
 package lenzu_hud;
 
+// Core HUD service — driven by the GTK4 lens client.
+//
+// All RPCs return Ack immediately (fire-and-forget semantics on the client
+// side) to avoid blocking the capture pipeline.  The gRPC server runs in
+// the Electron main process and dispatches to the renderer via IPC.
 service LenzuHud {
+  // Push OCR/translation text into the overlay HUD window.
+  // The HUD renders `text` as formatted HTML in a transparent overlay;
+  // existing content is replaced, not appended.
   rpc SendText (TextMessage) returns (Ack);
+
+  // Reposition the HUD overlay to the top or bottom edge of the screen.
+  // Called when the user presses ArrowUp (toggle top↔bottom).
   rpc MoveWindow (WindowPosition) returns (Ack);
+
+  // Graceful shutdown of the Electron HUD process.
+  // The server calls app.quit() and closes both gRPC and UDP sockets.
   rpc Shutdown (Empty) returns (Ack);
 }
 
+// Rendered text payload for the overlay HUD.
+// The string is pre-formatted HTML (Pango markup subset, plus spans for
+// ruby/furigana annotations).  The HUD renderer inserts it as innerHTML.
 message TextMessage {
+  // HTML string with OCR result + furigana/translation markup.
+  // Example: "<ruby>日本語<rt>にほんご</rt></ruby>"
   string text = 1;
 }
 
+// Screen-edge position for the HUD overlay window.
 message WindowPosition {
-  string pos = 1; // "top" | "bottom"
+  // Valid values: "top" or "bottom".
+  // The HUD window anchors to the corresponding screen edge with a small
+  // inset (see hudPadding in lenzu_server config).  Any other value is
+  // ignored (position stays unchanged).
+  string pos = 1;
 }
 
+// Nullary request — used when no input payload is needed.
 message Empty {}
 
+// Acknowledgment — returned by every RPC to confirm the request was received
+// and dispatched.  Does NOT guarantee the HUD renderer has processed it.
 message Ack {
+  // true if the request was accepted by the gRPC server.
+  // False means the server could not parse or dispatch the request.
   bool ok = 1;
 }
