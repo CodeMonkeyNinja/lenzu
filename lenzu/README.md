@@ -435,7 +435,7 @@ ONNX Runtime is downloaded automatically at build time by the `ort` crate — no
 cargo test -p lenzu --features onnx -- ocr::text_detection::tests::test_detect
 
 # Lens-crop image only  →  expects 2 boxes: tategaki separate, yokogaki+tegaki merged
-# See full benchmark: https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/docs/scores.md
+# See full benchmark: https://github.com/CodeMonkeyNinja/lenzu/wiki/scores
 cargo test -p jp_detect --features onnx -- test_detect_lens_crop_separates_tategaki
 
 # Fullscreen image only  →  expects 2 boxes  (OCR-Demo-JP2EN.png, 2816×1536)
