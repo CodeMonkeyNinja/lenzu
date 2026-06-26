@@ -22,7 +22,6 @@ export function startGrpcServer(opts: GrpcServerOptions): Effect.Effect<void> {
       __dirname,
       "..",
       "..",
-      "..",
       "proto",
       "lenzu_hud.proto",
     );
