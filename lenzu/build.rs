@@ -18,8 +18,7 @@ fn main() {
         ("openssl", "libssl-dev"),
     ];
 
-    let mut all_system_ok = true;
-    for (pkg, deb_pkg) in &system_packages {
+    let all_system_ok = system_packages.iter().all(|(pkg, deb_pkg)| {
         let found = Command::new("pkg-config")
             .args(["--exists", pkg])
             .status()
@@ -30,9 +29,9 @@ fn main() {
                 "cargo:warning=Missing system library: {pkg}. \
                  Install it with: sudo apt install {deb_pkg}"
             );
-            all_system_ok = false;
         }
-    }
+        found
+    });
     if !all_system_ok {
         println!("cargo:warning=Missing system libraries — run `scripts/setup.sh` to install all dependencies.");
     }

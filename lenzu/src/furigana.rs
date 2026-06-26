@@ -15,11 +15,10 @@ pub fn annotate(results: &mut [TranslationResult], furigana_only: bool) -> bool 
         return false;
     }
 
-    let mut any = false;
-    for result in results.iter_mut() {
+    results.iter_mut().fold(false, |any, result| {
         let text = result.original.trim();
         if text.is_empty() {
-            continue;
+            return any;
         }
 
         let annotated = if furigana_only {
@@ -29,10 +28,6 @@ pub fn annotate(results: &mut [TranslationResult], furigana_only: bool) -> bool 
         };
 
         if let Some(fr) = annotated {
-            // Dictionary-gap detection: when the input contains kanji but the
-            // annotated string has zero `[...]` brackets, MeCab found no readings
-            // for any kanji token (e.g. slang/compound not in IPADIC baseline).
-            // Surface this so silent no-op annotations aren't mistaken for "working".
             let has_kanji = text.chars().any(is_kanji);
             let has_readings = fr.furigana.contains('[');
             if has_kanji && !has_readings {
@@ -51,10 +46,11 @@ pub fn annotate(results: &mut [TranslationResult], furigana_only: bool) -> bool 
             if !furigana_only && !fr.romaji.is_empty() {
                 result.romaji = Some(fr.romaji);
             }
-            any = true;
+            any || true
+        } else {
+            any
         }
-    }
-    any
+    })
 }
 
 /// Compare LLM furigana against MeCab's dictionary-based readings.
@@ -62,21 +58,18 @@ pub fn annotate(results: &mut [TranslationResult], furigana_only: bool) -> bool 
 /// When `overwrite` is true, replaces the LLM furigana with MeCab's.
 /// Returns `true` if any result was processed.
 pub fn compare_and_maybe_overwrite(results: &mut [TranslationResult], overwrite: bool) -> bool {
-    use std::time::Instant;
-
     if mecab_furigana_rs::find_mecab_dict().is_none() {
         eprintln!("[mecab-check] no MeCab UTF-8 dictionary found — skipping");
         return false;
     }
 
-    let mut any = false;
-    for result in results.iter_mut() {
+    results.iter_mut().fold(false, |any, result| {
         let text = result.original.trim();
         if text.is_empty() {
-            continue;
+            return any;
         }
 
-        let t0 = Instant::now();
+        let t0 = std::time::Instant::now();
         let mecab_result = mecab_furigana_rs::annotate(text);
         let elapsed_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -106,16 +99,16 @@ pub fn compare_and_maybe_overwrite(results: &mut [TranslationResult], overwrite:
                     result.romaji = Some(fr.romaji);
                 }
             }
-            any = true;
+            any || true
         } else {
             eprintln!(
                 "[mecab-check] {:.1}ms MeCab returned nothing for «{}»",
                 elapsed_ms,
                 truncate_display(text, 40),
             );
+            any
         }
-    }
-    any
+    })
 }
 
 /// CJK Unified Ideographs (kanji used in Japanese, Chinese, Korean).
@@ -156,7 +149,10 @@ mod tests {
         }];
         if super::annotate(&mut results, true) {
             assert!(results[0].furigana.is_some(), "furigana should be set");
-            assert!(results[0].romaji.is_none(), "romaji should be None in furigana_only mode");
+            assert!(
+                results[0].romaji.is_none(),
+                "romaji should be None in furigana_only mode"
+            );
         }
     }
 
