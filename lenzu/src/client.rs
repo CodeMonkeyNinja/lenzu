@@ -646,17 +646,85 @@ impl DualOcrClient {
         Self { primary, local_fallbacks, free_remote_fallback, remote_fallbacks, fallback_max_dimension, primary_max_dimension }
     }
 
-    /// Returns `true` when results are empty or every `english` field is absent/blank.
-    pub fn needs_fallback(results: &[TranslationResult]) -> bool {
+    /// Returns `Some` when results are useful (at least one non-blank `english` field).
+    /// Returns `None` when all results are empty or have absent/blank english — continue to next backend.
+    fn good_results(results: &[TranslationResult]) -> Option<&[TranslationResult]> {
         if results.is_empty() {
-            return true;
+            return None;
         }
-        results.iter().all(|r| {
+        let all_empty = results.iter().all(|r| {
             r.english
                 .as_deref()
                 .map(|s| s.trim().is_empty())
                 .unwrap_or(true)
-        })
+        });
+        if all_empty { None } else { Some(results) }
+    }
+
+    /// Convenience wrapper: `true` when results need a fallback.
+    pub fn needs_fallback(results: &[TranslationResult]) -> bool {
+        Self::good_results(results).is_none()
+    }
+
+    fn log_debug(tag: &str) {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(API_DEBUG_PATH) {
+            let _ = std::io::Write::write_fmt(&mut f, format_args!("[{tag}]\n"));
+        }
+    }
+
+    fn meta(client: &OcrClient, t0: std::time::Instant) -> OcrMeta {
+        OcrMeta {
+            backend: client.label(),
+            elapsed_ms: t0.elapsed().as_millis(),
+            preview: false,
+        }
+    }
+
+    /// Try a single backend.  Returns `Some(outcome)` if the backend returned useful results,
+    /// `None` if it failed or returned all-empty results (caller should try next fallback).
+    /// Logging and runner-cancellation is handled internally.
+    async fn try_backend<'a>(
+        &'a self,
+        client: &'a OcrClient,
+        b64: &str,
+        t0: std::time::Instant,
+        cancel_on_err: bool,
+    ) -> Option<(Vec<TranslationResult>, OcrMeta)> {
+        match client.call_api(b64).await {
+            Ok(r) if Self::good_results(&r).is_some() => {
+                Some((r, Self::meta(client, t0)))
+            }
+            Ok(_) => {
+                eprintln!("[OCR] {} returned nothing useful", client.label());
+                None
+            }
+            Err(e) => {
+                eprintln!("[OCR] {} failed ({e})", client.label());
+                if cancel_on_err {
+                    Self::cancel_primary_runner();
+                }
+                None
+            }
+        }
+    }
+
+    /// Walk a fallback chain (Vec<OcrClient>), return the first useful result.
+    /// Tag is used for debug logging prefix (e.g. "local" or "remote").
+    async fn first_good_in_chain<'a>(
+        &'a self,
+        clients: &'a [OcrClient],
+        b64: &str,
+        t0: std::time::Instant,
+        tag: &str,
+    ) -> Option<(Vec<TranslationResult>, OcrMeta)> {
+        for (i, client) in clients.iter().enumerate() {
+            eprintln!("[OCR] trying {tag} fallback #{} ({})", i + 1, client.label());
+            Self::log_debug(&format!("{tag}-fallback-{}", i + 1));
+            if let Some(outcome) = self.try_backend(client, b64, t0, true).await {
+                return Some(outcome);
+            }
+        }
+        None
     }
 
     /// Kill any lingering ollama runner subprocess.
@@ -678,88 +746,68 @@ impl DualOcrClient {
         let t0 = std::time::Instant::now();
         save_prewire_debug(image);
         let primary_b64 = encode_for_fallback(image, self.primary_max_dimension);
-        let primary_result = self.primary.call_api(&primary_b64).await;
 
-        let needs_fb = match &primary_result {
-            Ok(results) => Self::needs_fallback(results),
-            Err(_) => true,
-        };
-
-        if !needs_fb {
-            let meta = OcrMeta { backend: self.primary.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false };
-            return primary_result.map(|r| (r, meta));
+        // Stage 1 — Primary (local ollama, full-res)
+        if let Some(result) = self.try_backend(&self.primary, &primary_b64, t0, true).await {
+            return Ok(result);
         }
 
-        match &primary_result {
-            Err(e) => {
-                eprintln!("[OCR] primary failed ({e}) — killing stale runner");
-                Self::cancel_primary_runner();
-            }
-            Ok(_) => eprintln!("[OCR] primary gave no translations"),
+        // Stage 2 — Local fallback chain (ollama, same full-res b64)
+        if let Some(result) = self.first_good_in_chain(&self.local_fallbacks, &primary_b64, t0, "local").await {
+            return Ok(result);
         }
 
-        // Walk the local fallback chain (e.g. gemma4 → …)
-        for (i, local) in self.local_fallbacks.iter().enumerate() {
-            eprintln!("[OCR] trying local fallback #{}", i + 1);
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(API_DEBUG_PATH) {
-                let _ = std::io::Write::write_fmt(&mut f, format_args!("[local-fallback-{}]\n", i + 1));
-            }
-            let result = local.call_api(&primary_b64).await;
-            let ok = match &result {
-                Ok(r) => !Self::needs_fallback(r),
-                Err(e) => {
-                    eprintln!("[OCR] local fallback #{} failed ({e}) — killing stale runner", i + 1);
-                    Self::cancel_primary_runner();
-                    false
-                }
-            };
-            if ok {
-                let meta = OcrMeta { backend: local.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false };
-                return result.map(|r| (r, meta));
-            }
+        // Stage 3 — Free remote (downscaled)
+        let fallback_b64 = encode_for_fallback(image, self.fallback_max_dimension);
+        eprintln!("[OCR] all local backends failed — trying free remote ({})", self.free_remote_fallback.label());
+        Self::log_debug("free-remote-fallback");
+
+        // Try free remote: if good → return; if no paid configured → return free result as-is even on failure
+        let free_result = self.free_remote_fallback.call_api(&fallback_b64).await;
+        let free_is_good = free_result.as_ref().ok().and_then(|r| Self::good_results(r)).is_some();
+
+        if free_is_good {
+            return free_result.map(|r| (r, Self::meta(&self.free_remote_fallback, t0)));
         }
 
-        // Free remote fallback — always available (30 req/day without key, 1000/day with key)
-        {
-            let fallback_b64 = encode_for_fallback(image, self.fallback_max_dimension);
-            eprintln!("[OCR] all local backends failed — trying free remote ({})", self.free_remote_fallback.label());
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(API_DEBUG_PATH) {
-                let _ = std::io::Write::write_fmt(&mut f, format_args!("[free-remote-fallback]\n"));
-            }
-            let meta_label = self.free_remote_fallback.label();
-            let result = self.free_remote_fallback.call_api(&fallback_b64).await;
-            let ok = match &result {
-                Ok(r) => !Self::needs_fallback(r),
-                Err(e) => { eprintln!("[OCR] free remote failed ({e})"); false }
-            };
-            if ok {
-                return result.map(|r| (r, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
-            }
-            // Fall through to paid remote chain if free remote failed or returned nothing useful.
-            if self.remote_fallbacks.is_empty() {
-                eprintln!("[OCR] paid remote not configured (OPENROUTER_API_KEY not set) — returning free remote result");
-                return result.map(|r| (r, OcrMeta { backend: self.free_remote_fallback.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false }));
-            }
-            let fallback_b64_paid = encode_for_fallback(image, self.fallback_max_dimension);
-            let mut last_paid: Result<(Vec<TranslationResult>, OcrMeta), Box<dyn std::error::Error + Send + Sync>> =
-                Err("no remote fallbacks attempted".into());
-            for (i, fb) in self.remote_fallbacks.iter().enumerate() {
-                eprintln!("[OCR] trying remote fallback #{} ({})", i + 1, fb.label());
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(API_DEBUG_PATH) {
-                    let _ = std::io::Write::write_fmt(&mut f, format_args!("[remote-fallback-{}]\n", i + 1));
-                }
-                let meta_label = fb.label();
-                let r = fb.call_api(&fallback_b64_paid).await;
-                match &r {
-                    Ok(v) if !Self::needs_fallback(v) => {
-                        return r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+        if self.remote_fallbacks.is_empty() {
+            eprintln!("[OCR] paid remote not configured (OPENROUTER_API_KEY not set) — returning free remote result");
+            return free_result
+                .map(|r| (r, Self::meta(&self.free_remote_fallback, t0)));
+        }
+
+        // Stage 4 — Paid remote chain: try each; if none produce good results,
+        // return whatever the last backend gave (even an error).
+        if let Some((last, init)) = self.remote_fallbacks.split_last() {
+            for fb in init {
+                eprintln!("[OCR] trying remote fallback ({})", fb.label());
+                Self::log_debug("remote-fallback");
+                let r = fb.call_api(&fallback_b64).await;
+                match r {
+                    Ok(v) if Self::good_results(&v).is_some() => {
+                        return Ok((v, Self::meta(fb, t0)));
                     }
-                    Ok(_) => eprintln!("[OCR] remote fallback #{} returned nothing useful", i + 1),
-                    Err(e) => eprintln!("[OCR] remote fallback #{} failed ({e})", i + 1),
+                    Ok(v) => {
+                        eprintln!("[OCR] remote fallback ({}) returned nothing useful", fb.label());
+                        let _ = v;
+                    }
+                    Err(e) => {
+                        eprintln!("[OCR] remote fallback ({}) failed ({e})", fb.label());
+                        let _ = e;
+                    }
                 }
-                last_paid = r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
             }
-            last_paid
+            // Last resort — call the final backend once
+            eprintln!("[OCR] trying remote fallback ({})", last.label());
+            Self::log_debug("remote-fallback-last");
+            let r = last.call_api(&fallback_b64).await;
+            match r {
+                Ok(v) if Self::good_results(&v).is_some() => Ok((v, Self::meta(last, t0))),
+                Ok(v) => Ok((v, Self::meta(last, t0))),
+                Err(e) => Err(e),
+            }
+        } else {
+            Err("no remote fallbacks configured".into())
         }
     }
 
@@ -770,38 +818,47 @@ impl DualOcrClient {
         save_prewire_debug(image);
         let b64 = encode_for_fallback(image, self.fallback_max_dimension);
 
-        // Try free remote first (always available)
-        let meta_label = self.free_remote_fallback.label();
-        let result = self.free_remote_fallback.call_api(&b64).await;
-        let ok = match &result {
-            Ok(r) => !Self::needs_fallback(r),
-            Err(e) => { eprintln!("[OCR] force-fallback free remote failed ({e})"); false }
-        };
-        if ok {
-            return result.map(|r| (r, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+        // Stage 1 — Free remote
+        let free_result = self.free_remote_fallback.call_api(&b64).await;
+        let free_is_good = free_result.as_ref().ok().and_then(|r| Self::good_results(r)).is_some();
+
+        if free_is_good {
+            return free_result.map(|r| (r, Self::meta(&self.free_remote_fallback, t0)));
         }
 
-        // Walk the paid remote chain
         if self.remote_fallbacks.is_empty() {
-            return result
-                .map(|r| (r, OcrMeta { backend: self.free_remote_fallback.label(), elapsed_ms: t0.elapsed().as_millis(), preview: false }))
+            return free_result
+                .map(|r| (r, Self::meta(&self.free_remote_fallback, t0)))
                 .map_err(|_| "Remote override unavailable: OPENROUTER_API_KEY not set and free remote failed".into());
         }
-        let mut last_paid: Result<(Vec<TranslationResult>, OcrMeta), Box<dyn std::error::Error + Send + Sync>> =
-            Err("no remote fallbacks attempted".into());
-        for (i, fb) in self.remote_fallbacks.iter().enumerate() {
-            let meta_label = fb.label();
-            let r = fb.call_api(&b64).await;
-            match &r {
-                Ok(v) if !Self::needs_fallback(v) => {
-                    return r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+
+        // Stage 2 — Paid remote chain: try each; return last backend's result (even error) if none good
+        if let Some((last, init)) = self.remote_fallbacks.split_last() {
+            for fb in init {
+                let r = fb.call_api(&b64).await;
+                match r {
+                    Ok(v) if Self::good_results(&v).is_some() => {
+                        return Ok((v, Self::meta(fb, t0)));
+                    }
+                    Ok(v) => {
+                        eprintln!("[OCR] force-fallback remote ({}) returned nothing useful", fb.label());
+                        let _ = v;
+                    }
+                    Err(e) => {
+                        eprintln!("[OCR] force-fallback remote ({}) failed ({e})", fb.label());
+                        let _ = e;
+                    }
                 }
-                Ok(_) => eprintln!("[OCR] force-fallback remote #{} returned nothing useful", i + 1),
-                Err(e) => eprintln!("[OCR] force-fallback remote #{} failed ({e})", i + 1),
             }
-            last_paid = r.map(|v| (v, OcrMeta { backend: meta_label, elapsed_ms: t0.elapsed().as_millis(), preview: false }));
+            let r = last.call_api(&b64).await;
+            match r {
+                Ok(v) if Self::good_results(&v).is_some() => Ok((v, Self::meta(last, t0))),
+                Ok(v) => Ok((v, Self::meta(last, t0))),
+                Err(e) => Err(e),
+            }
+        } else {
+            Err("no remote fallbacks configured".into())
         }
-        last_paid
     }
 }
 

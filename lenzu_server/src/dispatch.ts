@@ -1,7 +1,6 @@
-import { Effect } from "effect";
+import { Effect, Match } from "effect";
 import { HudWindowTag } from "./services/hud-window";
 
-// Re-export the UdpMessage type extracted from udp-socket
 export type UdpMessage =
   | { readonly type: "message"; readonly text: string }
   | { readonly type: "plaintext"; readonly text: string }
@@ -15,16 +14,17 @@ export function processMessage(
 ): Effect.Effect<void> {
   return Effect.gen(function* () {
     const hudWindow = yield* HudWindowTag;
-    switch (cmd.type) {
-      case "message":
-      case "plaintext":
-        return yield* hudWindow.sendText(cmd.text);
-      case "position":
-        return yield* onPosition(cmd.pos);
-      case "shutdown":
-        yield* Effect.logInfo("[UDP] Received shutdown command, quitting...");
-        yield* hudWindow.close();
-        return yield* onShutdown;
-    }
+    return yield* Match.value(cmd).pipe(
+      Match.when({ type: "message" }, (c) => hudWindow.sendText(c.text)),
+      Match.when({ type: "plaintext" }, (c) => hudWindow.sendText(c.text)),
+      Match.when({ type: "position" }, (c) => onPosition(c.pos)),
+      Match.when({ type: "shutdown" }, () =>
+        Effect.logInfo("[UDP] Received shutdown command, quitting...").pipe(
+          Effect.andThen(hudWindow.close()),
+          Effect.andThen(onShutdown),
+        ),
+      ),
+      Match.exhaustive,
+    );
   });
 }
