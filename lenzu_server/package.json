@@ -1,6 +1,6 @@
 {
   "name": "lenzu-hud",
-  "version": "1.0.1",
+  "version": "0.3.0",
   "description": "A transparent HUD-like overlay for Linux desktop displaying UDP text as closed-caption/subtitle",
   "main": "dist/main.js",
   "homepage": "https://github.com/CodeMonkeyNinja/lenzu",
@@ -29,20 +29,7 @@
     "email": "hidekiai@CodeMonkeyNinja.dev@users.noreply.github.com"
   },
   "license": "MIT",
-  "//": "Electron 41.3.0 confirmed working for transparent:true on Linux X11 (re-tested 2026-04-25 against integrated client and standalone HUD demo). The 36-41 transparency regression that previously held us on 35.x has been resolved upstream.",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild"
-    ],
-    "overrides": {
-      "electron": "42.3.3",
-      "tar": "^7.5.11",
-      "@tootallnate/once": "^3.0.1",
-      "tmp": "^0.2.6",
-      "ip-address": "^10.1.1"
-    }
-  },
+  "//": "Electron 42.3.3 confirmed: the xfwm4 ghost-pixel issue (Electron 36–41) is fixed. No picom needed.",
   "devDependencies": {
     "@types/node": "^25.9.2",
     "electron": "42.3.3",
@@ -93,5 +80,10 @@
         "libxcb-dri3-0"
       ]
     }
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.13.2",
+    "@grpc/proto-loader": "^0.7.13",
+    "effect": "^3.21.4"
   }
 }

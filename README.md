@@ -2,9 +2,9 @@
 
 **Install:** grab `lenzu-bundle-X.Y.Z.tar` from the [latest release](https://github.com/CodeMonkeyNinja/lenzu/releases/latest) — quick-start (extract, model installer, `./run.sh`) is on the release page.
 
-**Docs:** [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
+**Docs:** [Wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki) · [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
 
-**Linux only** (X11, GTK3). No Windows or macOS support.  Note that according to [Microsoft WSLG](https://github.com/microsoft/wslg), they claim you can run X11 (and Wayland) on Windows, I've no garauntees, but if they claim it can run [GIMP](https://github.com/GNOME/gimp) (Linux version) on WSLG, I'm sure you can run Lenzu (GIMP is GTK4 now right?)
+**Linux only** (X11, GTK4). No Windows or macOS support.  Note that according to [Microsoft WSLG](https://github.com/microsoft/wslg), they claim you can run X11 (and Wayland) on Windows, I've no garauntees, but if they claim it can run [GIMP](https://github.com/GNOME/gimp) (Linux version) on WSLG, I'm sure you can run Lenzu (GIMP is GTK4 now right?)
 
 Desktop OCR lens — a transparent floating window that follows the mouse cursor, captures the region under it on demand, and sends it to a local or remote LLM for OCR and translation. Results appear in a separate transparent overlay HUD (`lenzu_server`).
 
@@ -17,24 +17,24 @@ The key dif:ference from browser extensions like Yomitan/Rikaichan: this operate
 > and any image-based text that browser extensions like Yomitan or
 > Rikaichan can't see (because it's not selectable text).
 
-![beta demo](docs/lenzu-beta-demo.gif)
+![beta demo](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/lenzu-beta-demo.gif)
 
 **`--furigana_only` mode demo** — MeCab furigana only (no LLM enrichment, no translation), ~5 ms per capture after OCR:
 
-![--furigana_only preview](docs/Lenzu-demo-furigana-only.gif)
+![--furigana_only preview](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/Lenzu-demo-furigana-only.gif)
 
-*Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the full 3 min 24 s demo with audio, [download the MP4](assets/Lenzu-demo-2026-04-19_17.01.52.mp4).*
+_Preview: 15 s excerpt (T=30–45 s) at reduced framerate/resolution. For the full 3 min 24 s demo with audio, [download the MP4](assets/Lenzu-demo-2026-04-19_17.01.52.mp4)._
 
 ![Japanese OCR result](assets/Screenshot-JP.png)
 
 ![English translation result](assets/Screenshot-EN.png)
 
-> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK3** (`gtk-rs` 0.18) on Linux/X11. GTK4 was evaluated and abandoned due to integration complexity — GTK3 provides everything needed and is simpler to build against. See [Technical Design](./docs/technical-design.md) for current architecture.
+> **Architecture note**: The Windows/winit/GTK4 experiments are archived in `prototypes/`. The active implementation uses **GTK4** (`gtk4-rs` 0.11) on Linux/X11, with X11 passive grabs (`x11rb`) replacing GTK4's focus-gated event controllers. See [Technical Design](https://github.com/CodeMonkeyNinja/lenzu/wiki/technical-design) and [GTK-Migrations](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations) for current architecture.
 
 ## Architecture (Current)
 
 ```
-lenzu (GTK3 client)               lenzu_server (Electron)
+lenzu (GTK4 client)               lenzu_server (Electron)
   floating lens window     UDP     transparent overlay HUD
   X11 root capture       ──────►  renders translated text
   multi-tier OCR backend           ArrowUp/Down moves position
@@ -64,13 +64,13 @@ lenzu (GTK3 client)               lenzu_server (Electron)
 
 ### Inference speed on typical hardware
 
-| Backend | VRAM | Typical latency | Confidence scoring |
-| --- | --- | --- | --- |
-| jp_detect + manga-ocr-rs (local, no LLM) | ~150 MB models | ~0.8–2 s per high-confidence crop (CPU) | Det 0-100%, OCR 0-100%; >= 71% both = pass |
-| gemma4:e2b — full GPU (8 GB+) | ~7.4 GB | ~15–30 s | N/A (LLM fallback) |
-| gemma4:e2b — partial GPU | ~2 GB GPU + CPU | 60–120 s | N/A (LLM fallback) |
-| glm-ocr — full GPU (4 GB) | ~2.2 GB | ~5–15 s | N/A (LLM fallback) |
-| Gemini 2.0 Flash (remote) | — | ~3–5 s | N/A (LLM fallback) |
+| Backend                                  | VRAM            | Typical latency                         | Confidence scoring                         |
+| ---------------------------------------- | --------------- | --------------------------------------- | ------------------------------------------ |
+| jp_detect + manga-ocr-rs (local, no LLM) | ~150 MB models  | ~0.8–2 s per high-confidence crop (CPU) | Det 0-100%, OCR 0-100%; >= 71% both = pass |
+| gemma4:e2b — full GPU (8 GB+)            | ~7.4 GB         | ~15–30 s                                | N/A (LLM fallback)                         |
+| gemma4:e2b — partial GPU                 | ~2 GB GPU + CPU | 60–120 s                                | N/A (LLM fallback)                         |
+| glm-ocr — full GPU (4 GB)                | ~2.2 GB         | ~5–15 s                                 | N/A (LLM fallback)                         |
+| Gemini 2.0 Flash (remote)                | —               | ~3–5 s                                  | N/A (LLM fallback)                         |
 
 The local OCR path (jp_detect + manga-ocr-rs) is tried first for all capture modes. When
 both confidence scores pass the 71% gate, no LLM or network call is needed. For 4 GB VRAM
@@ -90,11 +90,11 @@ These companion crates were developed as part of this project and are available 
 - [`manga-ocr-rs`](https://crates.io/crates/manga-ocr-rs) — Japanese manga OCR via ViT encoder + BERT decoder (ONNX). Converts image crops to Japanese text.
 - [`mecab-furigana-rs`](https://crates.io/crates/mecab-furigana-rs) — MeCab-based furigana and romaji annotation. Dictionary-accurate readings at ~5 ms per call, with word segmentation and morpheme data.
 
-See [OCR Accuracy Scores](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/docs/scores.md) for unified benchmark results across all engines and prototypes.
+See [OCR Accuracy Scores](https://github.com/CodeMonkeyNinja/lenzu/wiki/lenzu/scores) for unified benchmark results across all engines and prototypes.
 
 ## Libraries & Dependencies
 
-- [`gtk` 0.18](https://crates.io/crates/gtk) — GTK3 bindings (gtk-rs). **GTK3, not GTK4.**
+- [`gtk4` 0.11](https://crates.io/crates/gtk4) — GTK4 bindings (gtk4-rs).
 - [`x11rb`](https://crates.io/crates/x11rb) — X11 protocol (screen capture)
 - [`cairo-rs`](https://crates.io/crates/cairo-rs) — 2D drawing
 - [`pango`](https://crates.io/crates/pango) / [`pangocairo`](https://crates.io/crates/pangocairo) — text layout and CJK rendering
@@ -115,9 +115,9 @@ export OPENROUTER_API_KEY=sk-your-key-here
 ./scripts/run.sh
 ```
 
-![Lenzu help screen (Shift+H)](docs/HELP.png)
+![Lenzu help screen (Shift+H)](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/HELP.png)
 
-See [`lenzu/README.md`](lenzu/README.md) for full configuration reference and controls.
+See [`lenzu/README.md`](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/lenzu/README.md) for full configuration reference and controls.
 
 ## Why Electron for the HUD (and not GTK)?
 
@@ -126,7 +126,7 @@ Short answer: WebKit2GTK has an unfixable alpha-compositing bug on X11, raw GTK 
 ### What was tried (see `HidekiAI/lenzu-prototypes` archive)
 
 - **Tauri + WebKit2GTK** — abandoned. WebKit's dirty-rect compositor treats `transparent → transparent` as a no-op and skips writing vacated alpha pixels back to the X11 surface. When shorter text replaces longer text the old characters stay on screen until an `Alt+Tab` forces a repaint. Three separate mitigations (near-zero background, body-background tick-toggle, synthetic X11 Expose event) all failed under different timing conditions. Root cause is architectural in WebKit's software renderer — not fixable from application code.
-- **GTK3 + Cairo** — doesn't have the dirty-rect bug (the Lenzu lens window is itself a transparent GTK3 + Cairo window and works fine), but see the capability comparison below for why it falls short for the HUD.
+- **GTK4 + Cairo** — doesn't have the dirty-rect bug (the Lenzu lens window itself uses GTK4 + Cairo `set_draw_func` and works fine), but see the capability comparison below for why it falls short for the HUD.
 
 ### Why GTK + Cairo can't match Electron here
 
@@ -136,15 +136,17 @@ Short answer: WebKit2GTK has an unfixable alpha-compositing bug on X11, raw GTK 
 
 Electron has the full web animation stack: CSS keyframes, `requestAnimationFrame` canvas sprites, GIF/WebP playback, **Lottie** (Adobe After Effects exported to JSON — the standard format for Clippy-grade rigged character animations), Spine 2D / DragonBones web runtimes for bone animation, WebGL for anything 3D. Reaction states wire up in a few lines of JS.
 
-**Click-through with selective interception.** GTK uses `input_shape_combine_region` to define an X11 input region — static, synchronous, has to be manually recalculated and re-applied every frame when the avatar changes shape.
+**Click-through with selective interception.** GTK uses `surface.set_input_region()` to define an X11 input region — static, synchronous, has to be manually recalculated and re-applied every frame when the avatar changes shape.
 
 Electron has `setIgnoreMouseEvents(true, { forward: true })` which passes all clicks through to whatever is underneath, and you toggle it dynamically from a `mousemove` listener:
 
 ```ts
 // clicks pass through by default; avatar captures them when hovered
 win.setIgnoreMouseEvents(true, { forward: true });
-avatar.addEventListener('mouseenter', () => win.setIgnoreMouseEvents(false));
-avatar.addEventListener('mouseleave', () => win.setIgnoreMouseEvents(true, { forward: true }));
+avatar.addEventListener("mouseenter", () => win.setIgnoreMouseEvents(false));
+avatar.addEventListener("mouseleave", () =>
+  win.setIgnoreMouseEvents(true, { forward: true }),
+);
 ```
 
 That is the entire selective click-interception logic. If the avatar gets bombarded with clicks, a JS counter and a CSS class change express the "annoyed" state — no X11 region recalculation per frame.
@@ -153,15 +155,15 @@ That is the entire selective click-interception logic. If the avatar gets bombar
 
 ### Verdict
 
-| Feature | GTK + Cairo | Electron |
-|---|---|---|
-| Transparent borderless window | ✓ | ✓ |
-| ARGB compositing (no ghost text) | ✓ | ✓ |
-| Click-through + selective interception | manual X11 shape mask per frame | one API call + `mousemove` |
-| Sprite / frame animation | hand-coded timer loop | trivial (Canvas, CSS, GIF/WebP) |
-| Rigged character animation (Clippy-grade) | not practical | Lottie, Spine, DragonBones |
-| State-driven reactions (idle → annoyed) | hand-coded state machine + redraw | CSS class + JS state |
-| Dynamic font / color / size | Pango rebuild + `queue_draw()` | one CSS variable |
+| Feature                                   | GTK + Cairo                       | Electron                        |
+| ----------------------------------------- | --------------------------------- | ------------------------------- |
+| Transparent borderless window             | ✓                                 | ✓                               |
+| ARGB compositing (no ghost text)          | ✓                                 | ✓                               |
+| Click-through + selective interception    | manual X11 shape mask per frame   | one API call + `mousemove`      |
+| Sprite / frame animation                  | hand-coded timer loop             | trivial (Canvas, CSS, GIF/WebP) |
+| Rigged character animation (Clippy-grade) | not practical                     | Lottie, Spine, DragonBones      |
+| State-driven reactions (idle → annoyed)   | hand-coded state machine + redraw | CSS class + JS state            |
+| Dynamic font / color / size               | Pango rebuild + `queue_draw()`    | one CSS variable                |
 
 Electron is the correct substrate for everything the HUD does today (transparent text overlay, top/bottom repositioning) and everything planned (animated avatar, reaction states). The HUD stays Electron.
 
@@ -173,7 +175,7 @@ client simply isn't allowed to do them:
 
 1. **Track the global cursor.** Lenzu polls the pointer position ~60×/sec so the
    lens follows your mouse anywhere on screen. A Wayland client can only see the
-   cursor while it's *over its own window* — it can't know where your mouse is on
+   cursor while it's _over its own window_ — it can't know where your mouse is on
    someone else's window or the desktop.
 2. **Place its own window under the cursor.** Lenzu moves the lens to absolute
    screen coordinates to sit over whatever you're pointing at. Wayland clients
@@ -199,17 +201,17 @@ Tracked in [GitHub Issues](https://github.com/CodeMonkeyNinja/lenzu/issues).
 
 ## License
 
-| Component | License |
-|---|---|
-| Lenzu (Rust client binary) | MIT |
-| lenzu-hud (Electron HUD) | MIT |
+| Component                                                            | License                                                                       |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Lenzu (Rust client binary)                                           | MIT                                                                           |
+| lenzu-hud (Electron HUD)                                             | MIT                                                                           |
 | DBNet ONNX model (`stabrise-text_detection_dbnet_ml_v02_model.onnx`) | **AGPL-3.0** — shipped as a separate sidecar, not bundled in the MIT AppImage |
-| manga-ocr ONNX models (`mayocream/manga-ocr-onnx`) | Apache-2.0 |
-| MeCab + IPADIC dictionary | BSD-3-Clause / BSD-style (system package, dynamically linked) |
-| GTK3, Cairo, Pango, GLib | LGPL-2.1+ (system packages, dynamically linked) |
-| Electron / Chromium | MIT + BSD variants (see Electron's own license) |
+| manga-ocr ONNX models (`mayocream/manga-ocr-onnx`)                   | Apache-2.0                                                                    |
+| MeCab + IPADIC dictionary                                            | BSD-3-Clause / BSD-style (system package, dynamically linked)                 |
+| GTK4, Cairo, Pango, GLib                                             | LGPL-2.1+ (system packages, dynamically linked)                               |
+| Electron / Chromium                                                  | MIT + BSD variants (see Electron's own license)                               |
 
-Full per-crate and per-dependency attribution is in [`lenzu/NOTICES.md`](lenzu/NOTICES.md) (also accessible in-app via **Shift+H → About**).
+Full per-crate and per-dependency attribution is in [`lenzu/NOTICES.md`](https://github.com/CodeMonkeyNinja/lenzu/blob/trunk/lenzu/NOTICES.md) (also accessible in-app via **Shift+H → About**).
 
 ## History
 

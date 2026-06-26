@@ -175,7 +175,7 @@ This section outlines the key libraries used in the project:
    - [`xcb`](https://crates.io/crates/xcb) (XCB bindings, actively maintained)
 
 4. **Window Management**:
-   - GTK3 (`gtk-rs` 0.18) — permanent choice. GTK4 was evaluated and abandoned (graphene/gobject dep complexity, API churn, prototype build failures).
+   - GTK3 (`gtk-rs` 0.18) — permanent choice. GTK4 was evaluated and abandoned (graphene/gobject dep complexity, API churn, prototype build failures). *(GTK4 migration reference consolidated at the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations).)*
 
 5. **Optional Services**:
    - Google Cloud Vision/Azure Computer Vision via OAuth2

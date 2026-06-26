@@ -73,3 +73,5 @@ gha-creds-*.json
 CLAUDE.md
 .claude/
 .gemini/
+prototypes/paddleocr-vl-manga/model/
+pnpm-workspace.yaml

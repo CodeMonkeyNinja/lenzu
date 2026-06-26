@@ -33,19 +33,20 @@ Do not skip this step and substitute a test run — the test suite does not exer
 
 ## 2. Bump versions
 
-Two files must be updated together. Increment the patch number (e.g. `0.1.15` → `0.1.16`):
+The single source of truth is **`VERSION`** at the repo root. Update it, then sync the downstream files:
 
-**`lenzu/Cargo.toml`** — the product version (used by the Rust binary and the AppImage filename):
-```toml
-version = "0.1.16"
+```bash
+echo "0.3.1" > VERSION
+sed -i 's/^version = ".*"/version = "0.3.1"/' lenzu/Cargo.toml
+sed -i 's/"version": ".*"/"version": "0.3.1"/' lenzu_server/package.json
 ```
 
-**`lenzu_server/package.json`** — the Electron HUD package version:
-```json
-"version": "1.0.1"
+**Verify all three are in sync:**
+```bash
+bash scripts/version-check.sh
 ```
 
-Both must be bumped on every release; they are displayed in different places but users see both.
+If any file is out of sync, the script exits with 1 and prints the mismatch.
 
 ---
 
@@ -185,8 +186,9 @@ The root cause is `target/appimage/` being restored from the cargo cache with ol
 
 | File | Purpose |
 |------|---------|
-| `lenzu/Cargo.toml` | Product version (source of truth for AppImage filename) |
-| `lenzu_server/package.json` | Electron HUD package version |
+| `VERSION` | **Single source of truth** for product version |
+| `lenzu/Cargo.toml` | Product version (must match `VERSION`) |
+| `lenzu_server/package.json` | Electron HUD package version (must match `VERSION`) |
 | `RELEASE_NOTES.md` | Release body — entire file is used as GitHub Release notes |
 | `scripts/make-installers.sh` | CI build entry point; `--ci` flag used in `release.yml` |
 | `scripts/build-lenzu-appimage.sh` | Builds the single-bundle AppImage |
@@ -199,3 +201,5 @@ The root cause is `target/appimage/` being restored from the cargo cache with ol
 - **Screenshot tools**: `gnome-screenshot -f <path>` is the most reliable; `scrot` and `import` can exit 144 in some environments.
 - **`git push` and `git tag` must use the per-account working dir** (`~/projects/remote/github/mine/codemonkeyninja/lenzu`), which has the correct SSH key wired in `.git/config`. The `/usr/src/...` checkout also works for file edits but use the `~/projects/remote/...` dir for all git operations.
 - **Old bundle tars in CI cache** — fixed in `make-installers.sh`; if you see them again, check whether the `rm -fv ... lenzu-bundle-*.tar` line is still present in `build_appimage()`.
+- **`pnpm-workspace.yaml` without a `packages` field breaks pnpm 9** — pnpm 9 treats any directory containing `pnpm-workspace.yaml` as a workspace root and requires a `packages:` list. If CI fails with `packages field missing or empty`, the file either has no `packages` key or it's empty. Fix: delete the file if the directory is a single package (not a monorepo), or add `packages: ['.']`. The `allowBuilds` / `onlyBuiltDependencies` settings belong in `pnpm.json`, not in `pnpm-workspace.yaml`. First hit: v0.2.0 release, `lenzu_server/pnpm-workspace.yaml`.
+- **`release.yml` system deps must track `test.yml`** — when GTK or other system deps are updated, both workflow files need to change. `test.yml` is usually fixed first (it runs on every push); `release.yml` is easy to miss because it only runs on tag push. After any toolkit version bump, grep both workflows for the old package name. First hit: v0.2.0, `libgtk-3-dev` left in `release.yml` after GTK4 migration.

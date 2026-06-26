@@ -1,6 +1,6 @@
 [package]
 name = "lenzu"
-version = "0.1.16"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 description = "Transparent OCR lens overlay for Linux desktop with Japanese-language support"
@@ -50,14 +50,13 @@ anyhow = "1.0"
 jp_detect = "0.2.3"
 manga-ocr-rs = "0.1.3"
 mecab-furigana-rs = "0.2.0"
-gtk = { version = "0.18", features = ["v3_24"] }
-gdk = { version = "0.18", features = ["v3_24"] }
-glib = "0.22"
+gtk4 = { version = "0.11", features = ["v4_14"] }
+gdk4-x11 = "0.11"
 async-channel = "2"
-gdk-pixbuf = "0.18"
-cairo-rs = "0.18"
-pango = "0.18"
-pangocairo = "0.18"
+gdk-pixbuf = "0.22"
+cairo-rs = "0.22"
+pango = "0.22"
+pangocairo = "0.22"
 x11rb = { version = "0.13", features = ["all-extensions"] }
 reqwest = { version = "0.13", features = ["blocking", "json"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -68,7 +67,13 @@ arboard = "3.4"
 chrono = "0.4"
 isolang = { version = "2.4.0" , features = ["serde"]}
 libc = "0.2"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "net"] }
+tonic = "0.12"
+prost = "0.13"
+
+[build-dependencies]
+tonic-build = "0.12"
+protoc-bin-vendored = "3.0"
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }

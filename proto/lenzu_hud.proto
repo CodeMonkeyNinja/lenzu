@@ -1,0 +1,22 @@
+syntax = "proto3";
+package lenzu_hud;
+
+service LenzuHud {
+  rpc SendText (TextMessage) returns (Ack);
+  rpc MoveWindow (WindowPosition) returns (Ack);
+  rpc Shutdown (Empty) returns (Ack);
+}
+
+message TextMessage {
+  string text = 1;
+}
+
+message WindowPosition {
+  string pos = 1; // "top" | "bottom"
+}
+
+message Empty {}
+
+message Ack {
+  bool ok = 1;
+}

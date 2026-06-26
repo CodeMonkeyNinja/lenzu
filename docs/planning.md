@@ -156,7 +156,7 @@ _Grayscale applies to all captures (local + remote); downscale applies only befo
 
 ### Overlay HUD (`lenzu_server`)
 
-- **xfwm4 compositor ghosting**: xfwm4's built-in compositor uses alpha-blend accumulation — each frame is blended on top of the previous buffer rather than composited fresh against the desktop, so semi-transparent areas fill with dark ghost pixels over time. The 3-frame erase cycle in `app.js` mitigates this but does not eliminate it. Full fix: disable xfwm4 compositing (`xfconf-query -c xfwm4 -p /general/use_compositing -s false`) and replace with `picom --backend glx --no-use-damage` (`--no-use-damage` forces full-surface redraws). See `lenzu_server/README.md` for complete steps.
+- **xfwm4 compositor ghosting (FIXED)**: Older Electron (36–41) left ghost pixels with xfwm4's built-in compositor. Updating to Electron 42+ resolves it — just ensure xfwm4 compositing is on (`xfconf-query -c xfwm4 -p /general/use_compositing -s true`).
 - `lenzu_server` must be started before `lenzu` (Phase 2 fixed this with auto-spawn)
 - Click-through not yet implemented (window intercepts mouse events)
 
@@ -181,7 +181,7 @@ _Grayscale applies to all captures (local + remote); downscale applies only befo
 ### UI toolkit: GTK3 (final decision)
 
 - **Decision**: GTK3 (`gtk-rs` 0.18) — permanent choice, not a stepping stone to GTK4
-- **Rationale**: GTK4 was evaluated and abandoned — graphene/gobject dep complexity, API churn, prototype build failures. GTK3 provides everything needed and is simpler to build against.
+- **Rationale**: GTK4 was evaluated and abandoned — graphene/gobject dep complexity, API churn, prototype build failures. GTK3 provides everything needed and is simpler to build against. *(GTK4 migration reference consolidated at the [GTK-Migrations wiki page](https://github.com/CodeMonkeyNinja/lenzu/wiki/GTK-Migrations).)*
 
 ### OCR Backend Selection
 
