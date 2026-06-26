@@ -1,14 +1,8 @@
 # <img src="assets/icon.png" alt="" width="96" align="left">&nbsp;lenzu 「レンズ」 (LINUX ONLY)
 
-**Install:** grab `lenzu-bundle-X.Y.Z.tar` from the [latest release](https://github.com/CodeMonkeyNinja/lenzu/releases/latest) — quick-start (extract, model installer, `./run.sh`) is on the release page.
+Desktop OCR lens — a transparent floating window that follows the mouse cursor, captures the region under it on demand, and sends it to a local or remote LLM for OCR and translation. Results appear in a separate transparent overlay HUD.
 
-**Docs:** [Wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki) · [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
-
-**Linux only** (X11, GTK4). No Windows or macOS support.  Note that according to [Microsoft WSLG](https://github.com/microsoft/wslg), they claim you can run X11 (and Wayland) on Windows, I've no garauntees, but if they claim it can run [GIMP](https://github.com/GNOME/gimp) (Linux version) on WSLG, I'm sure you can run Lenzu (GIMP is GTK4 now right?)
-
-Desktop OCR lens — a transparent floating window that follows the mouse cursor, captures the region under it on demand, and sends it to a local or remote LLM for OCR and translation. Results appear in a separate transparent overlay HUD (`lenzu_server`).
-
-The key dif:ference from browser extensions like Yomitan/Rikaichan: this operates on **images** (GPU-rendered video, game windows, PDFs, anything on screen), not UTF-8 text.
+The key difference from browser extensions like Yomitan/Rikaichan: this operates on **images** (GPU-rendered video, game windows, PDFs, anything on screen), not UTF-8 text.
 
 > **For readers:** Lenzu is a desktop manga reader companion for Linux.
 > Point it at any on-screen image — manga page, scanlation viewer, PDF,
@@ -16,6 +10,56 @@ The key dif:ference from browser extensions like Yomitan/Rikaichan: this operate
 > in a floating overlay. Useful for learning Japanese, reading raw manga,
 > and any image-based text that browser extensions like Yomitan or
 > Rikaichan can't see (because it's not selectable text).
+
+**Linux only** (X11, GTK4). No Windows or macOS support.
+
+**Docs:** [Wiki](https://github.com/CodeMonkeyNinja/lenzu/wiki) · [Configuration Reference](https://github.com/CodeMonkeyNinja/lenzu/wiki/Configuration-Reference) · [Troubleshooting](https://github.com/CodeMonkeyNinja/lenzu/wiki/Troubleshooting) · [Issues](https://github.com/CodeMonkeyNinja/lenzu/issues)
+
+---
+
+## Installation
+
+**1. Install MeCab + dictionary**
+
+```bash
+sudo apt install mecab mecab-ipadic-utf8 fonts-noto-cjk
+```
+
+**2. Download the AppImage**
+
+Grab `lenzu-X.Y.Z-x86_64.AppImage` from the [latest release](https://github.com/CodeMonkeyNinja/lenzu/releases/latest), make it executable, and run:
+
+```bash
+chmod +x lenzu-*-x86_64.AppImage
+./lenzu-*-x86_64.AppImage --furigana_only
+```
+
+The first run downloads models and starts ollama automatically. To install the AppImage permanently:
+
+```bash
+mkdir -p ~/.local/bin
+cp lenzu-*-x86_64.AppImage ~/.local/bin/lenzu
+```
+
+**3. (Optional) Set up a local LLM backend**
+
+Install [ollama](https://ollama.com) and pull the recommended model:
+
+```bash
+ollama pull gemma4:e2b
+```
+
+Ollama is the default backend when no API key is configured — no data leaves your device.
+
+**4. (Optional) Enable cloud fallback**
+
+```bash
+export OPENROUTER_API_KEY=sk-your-key-here
+```
+
+When the local model times out, Lenzu falls back to OpenRouter (Gemini 2.0 Flash). Leave unset for fully local operation.
+
+---
 
 ![beta demo](https://raw.githubusercontent.com/wiki/CodeMonkeyNinja/lenzu/lenzu/lenzu-beta-demo.gif)
 
