@@ -2,9 +2,9 @@
 
 ## Current Status (2026-03-22, branch: `RemoteOCR`)
 
-- **Platform**: Linux-primary (X11, GTK3)
+- **Platform**: Linux-primary (X11, GTK4)
 - **OCR/Translation**: OpenRouter API → Gemini 2.0 Flash (multimodal); returns structured JSON
-- **UI**: GTK3 floating lens window (Cairo + Pango), transparent RGBA
+- **UI**: GTK4 floating lens window (Cairo + Pango), transparent RGBA
 - **Capture**: X11 root window via `x11rb` (bypasses GPU-accelerated windows correctly)
 - **Overlay HUD**: Separate Electron process (`lenzu_server`) — transparent window, UDP IPC
 - **Interpreter**: MeCab morphological analysis for furigana/romaji (replaced kakasi); LLM for english translation

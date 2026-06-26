@@ -10,7 +10,7 @@
 
 | Layer | Technology |
 |---|---|
-| Lens window | GTK3 + Cairo + Pango (floating, RGBA, always-on-top) |
+| Lens window | GTK4 + Cairo + Pango (floating, RGBA, always-on-top) |
 | Screen capture | `x11rb` — X11 root window `GetImage` (ZPixmap) |
 | OCR / Translation | OpenRouter API → `google/gemini-2.0-flash-001` (multimodal JSON) |
 | HTTP client | `reqwest` (blocking) |
@@ -21,7 +21,7 @@
 ### Process architecture
 
 ```
-lenzu (GTK3 client)
+lenzu (GTK4 client)
   │
   │  Shift+Click → X11 capture → DBNet detect → refine_boxes → local OCR
   │    ├─ incremental: each box → manga-ocr-rs → MeCab furigana → HUD preview

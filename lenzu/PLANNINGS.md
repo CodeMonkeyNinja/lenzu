@@ -44,7 +44,7 @@ The overlay HUD was originally the `tauri-translucent-desktop-overlay` project (
 ```
 ./                              ← workspace root (repository root)
 ├── Cargo.toml                  ← workspace manifest (members: lenzu only; lenzu_server is Node/Electron)
-├── lenzu/                      ← OCR lens client (GTK3)
+├── lenzu/                      ← OCR lens client (GTK4)
 └── lenzu_server/               ← Electron overlay HUD
     ├── package.json            ← electron, esbuild, vitest devDeps
     ├── build.mjs               ← esbuild pipeline
@@ -349,7 +349,7 @@ The main client crate lives in `./lenzu/` but should be `./lenzu_client/` to mat
 ```
 ┌─────────────────────────────────┐
 │         lenzu (client)          │
-│  GTK3 lens window               │
+│  GTK4 lens window               │
 │  X11 capture (x11rb)            │
 │  OpenRouter API (reqwest)       │
 │  → format_for_overlay()         │
