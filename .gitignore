@@ -74,3 +74,4 @@ CLAUDE.md
 .claude/
 .gemini/
 prototypes/paddleocr-vl-manga/model/
+pnpm-workspace.yaml

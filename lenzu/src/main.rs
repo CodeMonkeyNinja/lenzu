@@ -177,6 +177,7 @@ use lenzu::capture;
 use lenzu::client;
 use lenzu::config;
 use lenzu::furigana;
+use lenzu::hud_ipc;
 use lenzu::ocr;
 use lenzu::utils;
 
@@ -236,34 +237,14 @@ fn format_for_overlay(
         .join("\n---\n")
 }
 
-fn send_to_overlay(text: &str, port: u16) {
-    if let Ok(socket) = std::net::UdpSocket::bind("127.0.0.1:0") {
-        let addr = format!("127.0.0.1:{}", port);
-        let message = serde_json::json!({
-            "type": "message",
-            "text": text
-        });
-        eprintln!(
-            "[UDP] About to send message to port {}: {:?}",
-            port, message
-        );
-        eprintln!("[HUD] Sending overlay text: {}", text);
-        let _ = socket.send_to(message.to_string().as_bytes(), addr);
-        eprintln!("[UDP] Sent message to port {}: {}", port, text);
-    }
-}
-
-/// Send a shutdown command to the server via UDP
-fn send_shutdown_command(port: u16) {
-    if let Ok(socket) = std::net::UdpSocket::bind("127.0.0.1:0") {
-        let addr = format!("127.0.0.1:{}", port);
-        let message = serde_json::json!({
-            "type": "shutdown"
-        });
-        let _ = socket.send_to(message.to_string().as_bytes(), addr);
-        // Give the server a moment to process the shutdown command
-        let _ = std::thread::sleep(std::time::Duration::from_millis(100));
-    }
+/// Try to initialise the gRPC channel after server spawn.
+/// Runs on the tokio runtime; failures are silently ignored (UDP fallback).
+fn init_grpc(port: u16, handle: &tokio::runtime::Handle) {
+    let grpc_port = port + 1;
+    let h = handle.clone();
+    h.spawn(async move {
+        hud_ipc::init_channel(grpc_port).await;
+    });
 }
 
 struct AppState {
@@ -372,6 +353,7 @@ fn spawn_server(port: u16) -> Option<std::process::Child> {
     }
 
     cmd.env("LENZU_OVERLAY_UDP_PORT", port.to_string())
+        .env("LENZU_OVERLAY_GRPC_PORT", (port + 1).to_string())
         .env("GTK_CSD", "0")
         .process_group(0)
         .spawn()
@@ -382,8 +364,8 @@ fn spawn_server(port: u16) -> Option<std::process::Child> {
 /// Kill the server child process and reap it.
 fn kill_server(server: &mut Option<std::process::Child>, config: &config::AppConfig) {
     if let Some(mut child) = server.take() {
-        // First try graceful shutdown via UDP
-        send_shutdown_command(config.overlay_udp_port);
+        // First try graceful shutdown via gRPC (falls back to UDP)
+        hud_ipc::send_shutdown(config.overlay_udp_port);
         // Give the server time to process the shutdown command
         std::thread::sleep(std::time::Duration::from_millis(500));
         // Force-kill the entire process group — Electron spawns child processes
@@ -431,14 +413,7 @@ fn ready_status(src: &Language, dest: &Language) -> String {
     )
 }
 
-/// Send a position command to lenzu_server so the HUD moves to `"top"` or `"bottom"`.
-fn send_hud_position(pos: &str, port: u16) {
-    if let Ok(socket) = std::net::UdpSocket::bind("127.0.0.1:0") {
-        let addr = format!("127.0.0.1:{port}");
-        let msg = serde_json::json!({"type": "position", "pos": pos});
-        let _ = socket.send_to(msg.to_string().as_bytes(), addr);
-    }
-}
+
 
 /// Resolve the path to one of the NOTICES files.  Tries dev tree first
 /// (`<repo>/lenzu/<filename>`), then the packaged location
@@ -727,7 +702,11 @@ fn main() -> glib::ExitCode {
         init_x11();
 
         let server_process = if cfg.overlay_enabled {
-            spawn_server(cfg.overlay_udp_port)
+            let child = spawn_server(cfg.overlay_udp_port);
+            // Initialise gRPC channel in the background (non-blocking).
+            // If gRPC is unreachable, hud_ipc falls back to UDP.
+            init_grpc(cfg.overlay_udp_port, &tokio_handle);
+            child
         } else {
             None
         };
@@ -918,7 +897,7 @@ fn main() -> glib::ExitCode {
                 if s.config.overlay_enabled {
                     let text = format_for_overlay(&results, &s.config.overlay_render_mode);
                     eprintln!("[HUD] Overlay enabled – prepared text: {}", text);
-                    send_to_overlay(&text, s.config.overlay_udp_port);
+                    hud_ipc::send_text(&text, s.config.overlay_udp_port);
                 }
 
                 // Only update clipboard and history on final results (not preview)
@@ -1105,10 +1084,10 @@ fn main() -> glib::ExitCode {
                     (s.hud_at_top, s.config.overlay_udp_port)
                 };
                 if frac > 0.70 && !cur_top {
-                    send_hud_position("top", port);
+                    hud_ipc::move_window("top", port);
                     state_main.borrow_mut().hud_at_top = true;
                 } else if frac < 0.30 && cur_top {
-                    send_hud_position("bottom", port);
+                    hud_ipc::move_window("bottom", port);
                     state_main.borrow_mut().hud_at_top = false;
                 }
             }

@@ -7,8 +7,6 @@ fn main() {
     }
 
     // ── System library prerequisite checks ──────────────────────────────────
-    // Check via pkg-config so the user gets a clear message instead of a
-    // cryptic linker error from gtk4-rs, cairo-rs, etc.
     let system_packages = [
         ("gtk4", "libgtk-4-dev"),
         ("cairo", "libcairo2-dev"),
@@ -35,13 +33,23 @@ fn main() {
             all_system_ok = false;
         }
     }
-
     if !all_system_ok {
         println!("cargo:warning=Missing system libraries — run `scripts/setup.sh` to install all dependencies.");
     }
 
+    // ── gRPC protobuf code generation ──────────────────────────────────────
+    println!("cargo:rerun-if-changed=../proto/");
+    // Fall back to vendored protoc when the system one isn't available
+    // (e.g. fresh checkout without protobuf-compiler installed).
+    if std::env::var("PROTOC").is_err() {
+        if let Ok(path) = protoc_bin_vendored::protoc_bin_path() {
+            std::env::set_var("PROTOC", path);
+        }
+    }
+    tonic_build::compile_protos("../proto/lenzu_hud.proto")
+        .expect("failed to compile lenzu_hud.proto");
+
     // ── Server build ───────────────────────────────────────────────────────
-    // Skip entirely when LENZU_SKIP_SERVER_BUILD is set (CI, quick builds).
     if std::env::var("LENZU_SKIP_SERVER_BUILD").is_ok() {
         println!("cargo:warning=Skipping lenzu_server build (LENZU_SKIP_SERVER_BUILD set).");
         return;
@@ -57,26 +65,22 @@ fn main() {
         .unwrap()
         .join("lenzu_server");
 
-    // ── Node.js check ──────────────────────────────────────────────────────
     let node_ok = Command::new("node")
         .arg("--version")
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
-
     if !node_ok {
         println!("cargo:warning=Node.js not found — skipping lenzu_server build.");
         println!("cargo:warning=Install Node.js: https://nodejs.org  (or: nvm install --lts)");
         return;
     }
 
-    // ── pnpm check ─────────────────────────────────────────────────────────
     let pnpm_ok = Command::new("pnpm")
         .arg("--version")
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
-
     if !pnpm_ok {
         println!("cargo:warning=pnpm not found — skipping lenzu_server build.");
         println!("cargo:warning=Install pnpm: npm install -g pnpm");
@@ -86,9 +90,12 @@ fn main() {
         return;
     }
 
-    // ── pnpm install ───────────────────────────────────────────────────────
+    // --ignore-scripts avoids ERR_PNPM_IGNORED_BUILDS for protobufjs and
+    // electron-winstaller (pnpm v11 requires explicit approval).  Build-only
+    // deps (esbuild, tsc) are sufficient for `pnpm run build`; the full
+    // Electron binary install is handled by scripts/setup.sh.
     let status = match Command::new("pnpm")
-        .args(["install"])
+        .args(["install", "--ignore-scripts"])
         .current_dir(&server_dir)
         .status()
     {
@@ -98,12 +105,10 @@ fn main() {
             return;
         }
     };
-
     if !status.success() {
         panic!("pnpm install failed in {server_dir:?}");
     }
 
-    // ── pnpm run build ─────────────────────────────────────────────────────
     let status = match Command::new("pnpm")
         .args(["run", "build"])
         .current_dir(&server_dir)
@@ -115,7 +120,6 @@ fn main() {
             return;
         }
     };
-
     if !status.success() {
         panic!("lenzu_server build failed in {server_dir:?}");
     }
