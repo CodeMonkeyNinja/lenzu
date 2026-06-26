@@ -99,8 +99,8 @@ let server_bin = std::env::current_exe()
 
 - [x] `lenzu/README.md` — config reference, overlay HUD section, prompt design
 - [x] `lenzu/PLANNINGS.md` — this file, updated to reflect reality
-- [x] `docs/planning.md` — high-level roadmap updated, GTK4 removed, M6 checked
-- [x] `docs/technical-design.md` — Section 0 current implementation added; GTK4 references removed throughout
+- [x] `docs/planning.md` (migrated to wiki) — high-level roadmap updated, GTK4 removed, M6 checked
+- [x] `docs/technical-design.md` (migrated to wiki) — Section 0 current implementation added; GTK4 references removed throughout
 - [x] `lenzu_server/README.md` — standalone server usage, `--port` arg, hud_config.json, picom/xfwm4 fix
 
 ---

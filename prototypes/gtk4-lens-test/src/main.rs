@@ -17,7 +17,7 @@ fn main() {
 
         // TODO: add x11rb cursor tracking, window positioning, click-through
         // once the prototypes side confirms the GTK3→GTK4 migration patterns.
-        // See docs/prototypes-desktop-issues.md §1 for workarounds.
+        // See https://github.com/CodeMonkeyNinja/lenzu/wiki/prototypes-desktop-issues §1 for workarounds.
 
         window.present();
     });
