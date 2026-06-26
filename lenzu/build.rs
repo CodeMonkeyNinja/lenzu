@@ -22,11 +22,17 @@ fn main() {
         .unwrap()
         .join("lenzu_server");
 
-    let status = Command::new("pnpm")
+    let status = match Command::new("pnpm")
         .args(["run", "build"])
         .current_dir(&server_dir)
         .status()
-        .expect("failed to run pnpm — is Node.js / pnpm installed?");
+    {
+        Ok(s) => s,
+        Err(e) => {
+            println!("cargo:warning=pnpm not found — skipping lenzu_server build ({e})");
+            return;
+        }
+    };
 
     if !status.success() {
         panic!("lenzu_server build failed");
