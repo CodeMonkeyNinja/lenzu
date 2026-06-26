@@ -5,6 +5,7 @@ import { Effect, Layer, Queue } from "effect";
 import { HudConfigService, HudConfigLive } from "./services/hud-config";
 import { HudWindowTag, HudWindowLive } from "./services/hud-window";
 import { UdpSocketTag, UdpSocketLive } from "./services/udp-socket";
+import { startGrpcServer } from "./services/grpc-server";
 import type { HudConfig } from "./config";
 import { computePosition, type WindowPosition } from "./window-position";
 import { processMessage } from "./dispatch";
@@ -109,6 +110,14 @@ const program = Effect.gen(function* () {
   });
 
   const { queue } = yield* UdpSocketTag;
+
+  // Start gRPC server (dual-protocol: gRPC alongside UDP).
+  const grpcPort = (() => {
+    const env = process.env.LENZU_OVERLAY_GRPC_PORT;
+    if (env) return parseInt(env, 10);
+    return config.udp_port + 1;
+  })();
+  yield* startGrpcServer({ port: grpcPort, mainWindow, config });
 
   const handlePosition = (pos: "top" | "bottom") =>
     Effect.sync(() => positionWindow(pos, mainWindow, config));
