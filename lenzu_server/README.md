@@ -38,8 +38,9 @@ on top, and fully configurable for position, translucency and font size.
 ## Prerequisites
 
 - **Node.js** ≥ 18
-- A compositing window manager on Linux (e.g. GNOME, KDE Plasma, i3+picom)
-  so that the transparent Electron window is actually composited.
+- A compositing window manager on Linux (e.g. GNOME, KDE Plasma, XFCE with
+  xfwm4 compositing enabled) so that the transparent Electron window is
+  actually composited.
 
 ---
 
@@ -59,10 +60,16 @@ npm install
 npm start
 ```
 
-### X11 with compositing (e.g. i3 + picom)
+### X11 with compositing (XFCE / xfwm4)
 
-On X11 you must pass the `--enable-transparent-visuals` flag so Chromium
-picks up a 32-bit visual from the compositor:
+Enable xfwm4 compositing (the ghost-pixel issue with Electron 36–41 is fixed
+in 42+ — no separate picom needed):
+
+```bash
+xfconf-query -c xfwm4 -p /general/use_compositing -s true
+```
+
+Pass `--enable-transparent-visuals` so Chromium picks up a 32-bit visual:
 
 ```bash
 npm run start:x11

@@ -1666,7 +1666,7 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
 name = "lenzu"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -1675,9 +1675,7 @@ dependencies = [
  "cairo-rs",
  "chrono",
  "gdk-pixbuf",
- "gdk4",
  "gdk4-x11",
- "glib",
  "gtk4",
  "image",
  "isolang",

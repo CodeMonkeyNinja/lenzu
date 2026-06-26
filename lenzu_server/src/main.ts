@@ -1,38 +1,31 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
-import * as path from 'path';
-import * as dgram from 'dgram';
-import { execSync } from 'child_process';
-import { loadConfig, DEFAULT_CONFIG, type HudConfig } from './config';
-import { computePosition, type WindowPosition } from './window-position';
+import { app, BrowserWindow, ipcMain, screen } from "electron";
+import * as path from "path";
+import { execSync } from "child_process";
+import { Effect, Layer, Queue } from "effect";
+import { HudConfigService, HudConfigLive } from "./services/hud-config";
+import { HudWindowTag, HudWindowLive } from "./services/hud-window";
+import { UdpSocketTag, UdpSocketLive } from "./services/udp-socket";
+import type { HudConfig } from "./config";
+import { computePosition, type WindowPosition } from "./window-position";
+import { processMessage } from "./dispatch";
 
 // Electron 36–41 had a Linux X11 regression where transparent:true rendered
 // as opaque white.  Re-tested on 41.3.0 (2026-04-25) and confirmed fixed.
-// Keeping a soft probe here so a future regression is loud at startup.
 console.info(`[HUD] Electron ${process.versions.electron} starting.`);
 
-// Required for ARGB transparent windows on X11.  Without this flag Chromium
-// requests a 24-bit visual and transparent: true has no effect.
-app.commandLine.appendSwitch('enable-transparent-visuals');
+app.commandLine.appendSwitch("enable-transparent-visuals");
 
-let mainWindow: BrowserWindow | null = null;
-let config: HudConfig = DEFAULT_CONFIG;
+app.on("window-all-closed", () => {
+  app.quit();
+});
 
-function positionWindow(position: WindowPosition): void {
-  if (!mainWindow) return;
-  const cursor = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursor);
-  const winSize = mainWindow.getSize() as [number, number];
-  const { x, y } = computePosition(display.workArea, winSize, position, config.bottom_margin);
-  mainWindow.setPosition(x, y);
-}
+// ─── pure helpers ───────────────────────────────────────────────────────────
 
-app.whenReady().then(() => {
-  config = loadConfig(path.join(app.getAppPath(), 'hud_config.json'));
-
+function createMainWindow(config: HudConfig): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay();
   const screenWidth = primaryDisplay.workAreaSize.width;
 
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: screenWidth,
     height: config.height,
     transparent: true,
@@ -43,104 +36,102 @@ app.whenReady().then(() => {
     resizable: false,
     hasShadow: false,
     focusable: false,
-    backgroundColor: '#00000000',
+    backgroundColor: "#00000000",
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  const buf = mainWindow.getNativeWindowHandle();
-  const winIdNum = buf.length >= 8
-    ? Number(buf.readBigUInt64LE(0))
-    : buf.readUInt32LE(0);
-  try {
-    const helper = app.isPackaged
-      ? path.join(process.resourcesPath, 'hud-set-override-redirect')
-      : path.join(__dirname, 'hud-set-override-redirect');
-    execSync(`"${helper}" ${winIdNum}`);
-  } catch (e) {
-    console.warn(`[HUD] override_redirect helper failed (non-fatal):`, (e as Error).message);
-  }
+  win.loadFile(path.join(__dirname, "renderer/index.html"));
+  win.once("ready-to-show", () => win.show());
+  win.on("closed", () => app.quit());
 
-  mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
-  positionWindow('bottom');
+  return win;
+}
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-  });
+const setOverrideRedirect = (win: BrowserWindow): Effect.Effect<void> => {
+  const buf = win.getNativeWindowHandle();
+  const winIdNum =
+    buf.length >= 8 ? Number(buf.readBigUInt64LE(0)) : buf.readUInt32LE(0);
+  return Effect.try({
+    try: () => {
+      const helper = app.isPackaged
+        ? path.join(process.resourcesPath, "hud-set-override-redirect")
+        : path.join(__dirname, "hud-set-override-redirect");
+      execSync(`"${helper}" ${winIdNum}`);
+    },
+    catch: (e) => e as Error,
+  }).pipe(
+    Effect.catchAll((e) =>
+      Effect.logWarning(
+        `override_redirect helper failed (non-fatal): ${e.message}`,
+      ),
+    ),
+  );
+};
 
-  ipcMain.handle('get-config', () => config);
+function positionWindow(
+  position: WindowPosition,
+  win: BrowserWindow | null,
+  cfg: HudConfig,
+): void {
+  if (!win || win.isDestroyed()) return;
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
+  const winSize = win.getSize() as [number, number];
+  const { x, y } = computePosition(
+    display.workArea,
+    winSize,
+    position,
+    cfg.bottom_margin,
+  );
+  win.setPosition(x, y);
+}
 
-  ipcMain.on('move-window', (_event, position: string) => {
-    if (position === 'top' || position === 'center' || position === 'bottom') {
-      positionWindow(position);
+// ─── program ────────────────────────────────────────────────────────────────
+
+const program = Effect.gen(function* () {
+  const config = yield* HudConfigService;
+
+  yield* Effect.promise(() => app.whenReady());
+
+  const mainWindow = createMainWindow(config);
+  yield* setOverrideRedirect(mainWindow);
+  positionWindow("bottom", mainWindow, config);
+
+  ipcMain.handle("get-config", () => config);
+  ipcMain.on("move-window", (_event, position: string) => {
+    if (position === "top" || position === "center" || position === "bottom") {
+      positionWindow(position, mainWindow, config);
     }
   });
 
-  const socket = dgram.createSocket('udp4');
-  let socketClosed = false;
+  const { queue } = yield* UdpSocketTag;
 
-  function closeSocket(): void {
-    if (!socketClosed) {
-      socketClosed = true;
-      socket.close();
-    }
-  }
+  const handlePosition = (pos: "top" | "bottom") =>
+    Effect.sync(() => positionWindow(pos, mainWindow, config));
+  const handleShutdown = Effect.sync(() => app.quit());
 
-  socket.on('message', (msg) => {
-    const text = msg.toString().trim();
-    if (!text) return;
-    console.log('[UDP] Received:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
-    // Parse JSON commands; fall back to plain-text display
-    try {
-      const cmd = JSON.parse(text);
-      if (cmd.type === 'shutdown') {
-        console.log('[UDP] Received shutdown command, quitting...');
-        closeSocket();
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-        app.quit();
-        return;
-      }
-      if (cmd.type === 'position' && (cmd.pos === 'top' || cmd.pos === 'bottom')) {
-        positionWindow(cmd.pos);
-        return;
-      }
-      if (cmd.type === 'message' && typeof cmd.text === 'string') {
-        // Extract inner text from the JSON envelope and display it
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('hud-text-changed', cmd.text);
-        }
-        return;
-      }
-    } catch {
-      // Not JSON — treat as plain text (backward compat)
-    }
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('hud-text-changed', text);
-    }
-  });
-
-  socket.on('error', (err) => {
-    console.error('UDP error:', err);
-    closeSocket();
-  });
-
-  socket.bind(config.udp_port, '127.0.0.1', () => {
-    const addr = socket.address();
-    console.log(`HUD listening on UDP ${addr.address}:${addr.port}`);
-  });
-
-  app.on('before-quit', () => {
-    closeSocket();
-  });
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
+  yield* Effect.forever(
+    Effect.gen(function* () {
+      const cmd = yield* Queue.take(queue);
+      return yield* processMessage(cmd, handleShutdown, handlePosition);
+    }).pipe(Effect.provide(HudWindowLive(mainWindow))),
+  );
 });
 
-app.on('window-all-closed', () => {
-  app.quit();
+// ─── layers ─────────────────────────────────────────────────────────────────
+
+const AppLayer = Layer.provideMerge(
+  UdpSocketLive,
+  HudConfigLive(app.getAppPath()),
+);
+
+// ─── entry point ────────────────────────────────────────────────────────────
+
+Effect.runPromise(program.pipe(Effect.provide(AppLayer))).catch((e) => {
+  console.error("[HUD] fatal error:", e);
+  process.exit(1);
 });

@@ -111,11 +111,10 @@ tracking, and rendering from scratch.
 >
 > — `docs/technical-design.phase4-predetect.md`
 
-### Compositor ghosting (xfwm4)
+### Compositor ghosting (xfwm4) — FIXED
 
-Semi-transparent areas fill with dark ghost pixels under xfwm4 compositing.
-Mitigated by a 3-frame erase cycle in the Electron HUD. Full fix: replace xfwm4
-compositing with `picom --backend glx --no-use-damage`.
+Older Electron (36–41) left ghost pixels with xfwm4 compositing. Updating to
+**Electron 42+** resolves it.
 
 ### Compositor sync timing
 
