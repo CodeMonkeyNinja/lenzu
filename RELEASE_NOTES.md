@@ -1,5 +1,9 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.4.1
+
+- **Bugfix** — AppImage HUD no longer crashes with `ENOENT: no such file or directory, open '.../proto/lenzu_hud.proto'`. The proto file is now bundled into the Electron asar during build. (#62)
+
 ### What's new in v0.4.0
 
 - **Native `<ruby>` furigana in HUD** — the Electron overlay now renders furigana readings via W3C `<ruby><rt>` elements (readings pinned directly above their kanji, inline). Powered by `mecab-furigana-rs` v0.4.0's `furigana_to_html()`. Pass `--plaintext` to restore bracketed format (e.g. `食[た]べ物[もの]`).
