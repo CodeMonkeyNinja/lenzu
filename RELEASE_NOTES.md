@@ -2,8 +2,9 @@
 
 ### What's new in v0.4.0
 
-- **HTML furigana in HUD** — the Electron overlay now renders furigana readings in small type above kanji via CSS-grid `<span>` markup. Powered by `mecab-furigana-rs` v0.3.0's `furigana_to_html()`. Pass `--plaintext` to restore the previous bracketed format (e.g. `食[た]べ物[もの]`).
-- **New config field** `hud_html` (default `true`) — set to `false` or use `--plaintext` CLI flag to disable HTML span rendering.
+- **Native `<ruby>` furigana in HUD** — the Electron overlay now renders furigana readings via W3C `<ruby><rt>` elements (readings pinned directly above their kanji, inline). Powered by `mecab-furigana-rs` v0.4.0's `furigana_to_html()`. Pass `--plaintext` to restore bracketed format (e.g. `食[た]べ物[もの]`).
+- **New config field** `hud_html` (default `true`) — set to `false` or use `--plaintext` CLI flag to disable `<ruby>` rendering.
+- **Security** — HTML sanitizer (`sanitizeHtml`) allows only `<ruby>`, `<rt>`, and safe `<span>` tags; strips all other tags and attributes.
 
 ### What's new in v0.2.0
 

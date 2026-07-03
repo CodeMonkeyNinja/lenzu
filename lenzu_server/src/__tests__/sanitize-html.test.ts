@@ -4,6 +4,23 @@ import { sanitizeHtml } from "../renderer/sanitize";
 describe("sanitizeHtml", () => {
   // ── Happy paths ──────────────────────────────────────────────────────────
 
+  it("allows ruby element with rt annotation", () => {
+    expect(sanitizeHtml("<ruby>食<rt>た</rt></ruby>")).toBe(
+      "<ruby>食<rt>た</rt></ruby>",
+    );
+  });
+
+  it("allows multiple ruby annotations inline", () => {
+    const input = "<ruby>食<rt>た</rt></ruby>べ<ruby>物<rt>もの</rt></ruby>";
+    expect(sanitizeHtml(input)).toBe(input);
+  });
+
+  it("strips attributes from ruby tags", () => {
+    expect(sanitizeHtml('<ruby class="evil">食<rt>た</rt></ruby>')).toBe(
+      "<ruby>食<rt>た</rt></ruby>",
+    );
+  });
+
   it("allows furigana span with read and base children", () => {
     const input =
       '<span class="furigana"><span class="read">た</span><span class="base">食</span></span>';

@@ -36,18 +36,7 @@ html, body {
   line-height: 1.4;
 }
 
-/* Furigana ruby rendering via CSS-grid — readings in small type above kanji */
-.furigana {
-  display: inline-grid;
-  place-items: center;
-  grid-template-rows: auto auto;
-}
-.furigana .read {
+/* Furigana ruby rendering — native W3C <ruby> element, readings above kanji */
+rt {
   font-size: 0.55em;
-  line-height: 1;
-  grid-row: 1;
-  white-space: nowrap;
-}
-.furigana .base {
-  grid-row: 2;
 }

@@ -1,10 +1,10 @@
-//! Convert bracketed furigana to HTML span markup via `mecab-furigana-rs`.
+//! Convert bracketed furigana to HTML `<ruby>` markup via `mecab-furigana-rs`.
 //!
 //! Thin delegation — the actual parser and HTML renderer live upstream in the
 //! `mecab-furigana-rs` crate so that any consumer can render furigana without
 //! reimplementing the bracket-format parser.
 
-/// Convert a bracketed furigana string to HTML span markup for the HUD overlay.
+/// Convert a bracketed furigana string to `<ruby>` element markup for the HUD overlay.
 ///
 /// Delegates to `mecab_furigana_rs::furigana_to_html()`.
 ///
@@ -16,8 +16,7 @@
 /// let html = bracketed_to_furigana_html("食[た]べ物[もの]");
 /// assert_eq!(
 ///     html,
-///     "<span class=\"furigana\"><span class=\"read\">た</span><span class=\"base\">食</span></span>べ\
-///      <span class=\"furigana\"><span class=\"read\">もの</span><span class=\"base\">物</span></span>"
+///     "<ruby>食<rt>た</rt></ruby>べ<ruby>物<rt>もの</rt></ruby>"
 /// );
 /// ```
 pub fn bracketed_to_furigana_html(input: &str) -> String {
@@ -34,7 +33,7 @@ mod tests {
     fn basic_single_kanji_with_reading() {
         assert_eq!(
             bracketed_to_furigana_html("食[た]べる"),
-            "<span class=\"furigana\"><span class=\"read\">た</span><span class=\"base\">食</span></span>べる"
+            "<ruby>食<rt>た</rt></ruby>べる"
         );
     }
 
@@ -42,9 +41,7 @@ mod tests {
     fn multiple_kanji_groups_with_readings() {
         assert_eq!(
             bracketed_to_furigana_html("食[た]べ物[もの]が好[す]き"),
-            "<span class=\"furigana\"><span class=\"read\">た</span><span class=\"base\">食</span></span>べ\
-             <span class=\"furigana\"><span class=\"read\">もの</span><span class=\"base\">物</span></span>が\
-             <span class=\"furigana\"><span class=\"read\">す</span><span class=\"base\">好</span></span>き"
+            "<ruby>食<rt>た</rt></ruby>べ<ruby>物<rt>もの</rt></ruby>が<ruby>好<rt>す</rt></ruby>き"
         );
     }
 
@@ -52,8 +49,7 @@ mod tests {
     fn consecutive_kanji_groups() {
         assert_eq!(
             bracketed_to_furigana_html("東京[とうきょう]大阪[おおさか]"),
-            "<span class=\"furigana\"><span class=\"read\">とうきょう</span><span class=\"base\">東京</span></span>\
-             <span class=\"furigana\"><span class=\"read\">おおさか</span><span class=\"base\">大阪</span></span>"
+            "<ruby>東京<rt>とうきょう</rt></ruby><ruby>大阪<rt>おおさか</rt></ruby>"
         );
     }
 
@@ -61,7 +57,7 @@ mod tests {
     fn kanji_with_multi_char_reading() {
         assert_eq!(
             bracketed_to_furigana_html("日本語[にほんご]"),
-            "<span class=\"furigana\"><span class=\"read\">にほんご</span><span class=\"base\">日本語</span></span>"
+            "<ruby>日本語<rt>にほんご</rt></ruby>"
         );
     }
 
@@ -86,7 +82,7 @@ mod tests {
     fn empty_reading_after_kanji() {
         assert_eq!(
             bracketed_to_furigana_html("漢字[]"),
-            "<span class=\"furigana\"><span class=\"read\"></span><span class=\"base\">漢字</span></span>"
+            "<ruby>漢字<rt></rt></ruby>"
         );
     }
 
@@ -109,13 +105,12 @@ mod tests {
     fn reading_with_punctuation() {
         assert_eq!(
             bracketed_to_furigana_html("漢字[かん・じ]"),
-            "<span class=\"furigana\"><span class=\"read\">かん・じ</span><span class=\"base\">漢字</span></span>"
+            "<ruby>漢字<rt>かん・じ</rt></ruby>"
         );
     }
 
     #[test]
     fn non_kanji_bracket_is_literal() {
-        // CPU is ASCII, not CJK — bracket is treated as literal text
         assert_eq!(
             bracketed_to_furigana_html("CPU[シーピーユー]"),
             "CPU[シーピーユー]"
@@ -126,7 +121,7 @@ mod tests {
     fn multiple_brackets_only_first_matched_as_reading() {
         assert_eq!(
             bracketed_to_furigana_html("漢字[かんじ]あと[追加]"),
-            "<span class=\"furigana\"><span class=\"read\">かんじ</span><span class=\"base\">漢字</span></span>あと[追加]"
+            "<ruby>漢字<rt>かんじ</rt></ruby>あと[追加]"
         );
     }
 
@@ -134,8 +129,7 @@ mod tests {
     fn whitespace_preserved() {
         assert_eq!(
             bracketed_to_furigana_html("漢字[かんじ] と 記号[きごう]"),
-            "<span class=\"furigana\"><span class=\"read\">かんじ</span><span class=\"base\">漢字</span></span> と \
-             <span class=\"furigana\"><span class=\"read\">きごう</span><span class=\"base\">記号</span></span>"
+            "<ruby>漢字<rt>かんじ</rt></ruby> と <ruby>記号<rt>きごう</rt></ruby>"
         );
     }
 

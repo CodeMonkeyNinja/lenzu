@@ -1781,7 +1781,7 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
 name = "lenzu"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -1921,9 +1921,9 @@ dependencies = [
 
 [[package]]
 name = "mecab-furigana-rs"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a70b085713c86293f21f7a8137dfb71e50959aa8badf1c87f7811e1845110ca5"
+checksum = "36d9b9663daf709bf136699a6bf6d90841c92fe09d4715a9cbc2bfdeba57c46b"
 
 [[package]]
 name = "memchr"

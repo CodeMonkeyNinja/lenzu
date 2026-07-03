@@ -1,6 +1,6 @@
 const ALLOWED_CLASSES = new Set(["furigana", "read", "base"]);
 const RAW_CONTENT_TAGS = new Set(["script", "style", "iframe"]);
-const ALLOWED_TAGS = new Set(["span"]);
+const ALLOWED_TAGS = new Set(["ruby", "rt", "span"]);
 
 function classListAllowed(classes: string): boolean {
   if (!classes.trim()) return false;
@@ -153,7 +153,11 @@ export function sanitizeHtml(input: string): string {
           if (i < len && input[i] === ">") i++;
 
           flushText();
-          out.push(allowedClass ? `<span class="${classValue}">` : `<span>`);
+          if (tagName === "span") {
+            out.push(allowedClass ? `<span class="${classValue}">` : `<span>`);
+          } else {
+            out.push(`<${tagName}>`);
+          }
         } else {
           // Disallowed tag: skip to >, text content goes through normal flow
           while (i < len && input[i] !== ">") i++;

@@ -330,7 +330,7 @@ fn spawn_server(port: u16) -> Option<std::process::Child> {
     let mut cmd = if let Some(dir) = lenzu_server_dir() {
         // Dev tree: launch Electron directly so the child PID is the Electron process.
         let mut c = std::process::Command::new("node_modules/.bin/electron");
-        c.args(["dist/main.js"]).current_dir(&dir);
+        c.args(["--no-sandbox", "dist/main.js"]).current_dir(&dir);
         c
     } else if let Ok(appdir) = std::env::var("APPDIR") {
         // AppImage: APPDIR is set by the AppRun hook but usr/bin is NOT added to

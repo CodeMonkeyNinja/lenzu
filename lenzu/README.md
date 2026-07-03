@@ -125,7 +125,7 @@ Hepburn converter to produce romaji — no kakasi CLI dependency needed.
 | Flag | Description |
 |---|---|
 | `--furigana_only` | MeCab furigana only — skip romaji and LLM enrichment. Overrides `furigana_only` in config. Use via `scripts/run.sh --furigana_only`. |
-| `--plaintext` | Send plain bracketed furigana to the HUD overlay instead of HTML `<span>` markup. Disables CSS-grid furigana rendering. Overrides `hud_html` in config. |
+| `--plaintext` | Send plain bracketed furigana to the HUD overlay instead of `<ruby><rt>` markup. Disables native ruby rendering. Overrides `hud_html` in config. |
 
 > **Screen capture approach** inspired by `xfce4-screenshooter`'s method of reading pixels
 > directly from the X11 root window, which correctly captures GPU-accelerated and
@@ -397,7 +397,7 @@ Optional file in the working directory. All fields have defaults if the file is 
 | `enrichment_timeout_secs` | Timeout for each enrichment request | `30` |
 | `enrichment_prompt` | Override the entire enrichment prompt; `null` uses built-in. `{src}`/`{dest}` placeholders resolved. | `null` |
 | `furigana_only` | When `true`, use only MeCab furigana — skip romaji and LLM enrichment entirely. Instant results (~5 ms). Override via `--furigana_only` CLI flag. | `false` |
-| `hud_html` | When `true`, send HTML `<span>` markup to the HUD for CSS-grid furigana rendering (readings in small type above kanji). Set `false` or pass `--plaintext` to send plain bracketed furigana. See [`mecab-furigana-rs` README](https://github.com/CodeMonkeyNinja/mecab_furigana_rs#furigana-html-format) for the HTML format spec. | `true` |
+| `hud_html` | When `true`, send `<ruby><rt>` markup to the HUD for native W3C ruby annotation rendering (readings in small type above kanji). Set `false` or pass `--plaintext` to send plain bracketed furigana. See [`mecab-furigana-rs` README](https://github.com/CodeMonkeyNinja/mecab_furigana_rs#output-formats) for the HTML format spec. | `true` |
 | `token_warning_threshold` | Session paid tokens at which HUD turns orange (0 = disable) | `100000` |
 | `token_critical_threshold` | Session paid tokens at which HUD turns red (0 = disable) | `500000` |
 
