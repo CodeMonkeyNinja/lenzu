@@ -29,6 +29,8 @@ await esbuild.build({
 
 copyFileSync('src/renderer/index.html', 'dist/renderer/index.html');
 copyFileSync('src/renderer/styles.css', 'dist/renderer/styles.css');
+mkdirSync('dist/proto', { recursive: true });
+copyFileSync('../proto/lenzu_hud.proto', 'dist/proto/lenzu_hud.proto');
 
 // Compile the X11 override-redirect helper (Linux only).
 // Requires libx11-dev: apt install libx11-dev

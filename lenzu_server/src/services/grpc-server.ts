@@ -18,13 +18,7 @@ export interface GrpcServerOptions {
 
 export function startGrpcServer(opts: GrpcServerOptions): Effect.Effect<void> {
   return Effect.sync(() => {
-    const protoPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "proto",
-      "lenzu_hud.proto",
-    );
+    const protoPath = path.join(__dirname, "proto", "lenzu_hud.proto");
     const packageDefinition = protoLoader.loadSync(protoPath, {
       keepCase: false,
       longs: String,
