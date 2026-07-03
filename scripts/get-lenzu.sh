@@ -30,8 +30,12 @@ done
 # Resolve the latest release tag if none given
 if [[ -z "${TAG:-}" ]]; then
   echo "[get-lenzu] Fetching latest release tag..."
-  TAG="$(curl -sSfL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)",.*/\1/')"
+  if command -v gh &>/dev/null; then
+    TAG="$(gh release list --limit 1 --json tagName --jq '.[0].tagName')"
+  else
+    TAG="$(curl -sSfL "https://api.github.com/repos/${REPO}/releases/latest" \
+      | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)",.*/\1/')"
+  fi
 fi
 
 VERSION="${TAG#v}"
