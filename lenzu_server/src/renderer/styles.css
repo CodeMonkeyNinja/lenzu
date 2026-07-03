@@ -35,3 +35,19 @@ html, body {
     -1px -1px 3px rgba(0, 0, 0, 0.6);
   line-height: 1.4;
 }
+
+/* Furigana ruby rendering via CSS-grid — readings in small type above kanji */
+.furigana {
+  display: inline-grid;
+  place-items: center;
+  grid-template-rows: auto auto;
+}
+.furigana .read {
+  font-size: 0.55em;
+  line-height: 1;
+  grid-row: 1;
+  white-space: nowrap;
+}
+.furigana .base {
+  grid-row: 2;
+}

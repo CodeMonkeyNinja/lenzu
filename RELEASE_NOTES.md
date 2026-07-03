@@ -1,5 +1,10 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v0.4.0
+
+- **HTML furigana in HUD** — the Electron overlay now renders furigana readings in small type above kanji via CSS-grid `<span>` markup. Powered by `mecab-furigana-rs` v0.3.0's `furigana_to_html()`. Pass `--plaintext` to restore the previous bracketed format (e.g. `食[た]べ物[もの]`).
+- **New config field** `hud_html` (default `true`) — set to `false` or use `--plaintext` CLI flag to disable HTML span rendering.
+
 ### What's new in v0.2.0
 
 - **GTK4 migration** — Rust client rewritten against GTK4/GDK4. Resolves spinner freeze and ghost-frame regressions introduced by GTK3's deprecated `WindowType::Popup` on modern compositors.

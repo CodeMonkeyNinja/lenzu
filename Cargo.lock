@@ -1921,9 +1921,9 @@ dependencies = [
 
 [[package]]
 name = "mecab-furigana-rs"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a260cf57ac8f792d1ab3ead53166ccd93d751e7256217864a5d587e247fe053a"
+checksum = "a70b085713c86293f21f7a8137dfb71e50959aa8badf1c87f7811e1845110ca5"
 
 [[package]]
 name = "memchr"

@@ -1,6 +1,7 @@
 export {};
 
 import { SynchronizedRef, Queue, Effect, pipe, Option, Array } from "effect";
+import { sanitizeHtml } from "./sanitize";
 
 interface HudConfig {
   background_opacity: number;
@@ -28,7 +29,7 @@ const subtitleText = document.getElementById(
 const POSITIONS = ["top", "center", "bottom"] as const;
 
 function renderText(text: string, cfg: HudConfig): void {
-  subtitleText.textContent = text;
+  subtitleText.innerHTML = sanitizeHtml(text);
   subtitleText.style.color = cfg.text_color;
   subtitleText.style.fontSize = `${cfg.font_size_pt}pt`;
   subtitleBox.style.background = pipe(

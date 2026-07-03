@@ -604,6 +604,12 @@ fn main() -> glib::ExitCode {
         eprintln!("[Config] --nomecab_overwrite: MeCab will compare but NOT overwrite LLM furigana");
     }
 
+    // CLI override: --plaintext disables HTML markup in the HUD overlay
+    if std::env::args().any(|a| a == "--plaintext") {
+        cfg.hud_html = false;
+        eprintln!("[Config] --plaintext: sending plain bracketed furigana to HUD (no HTML spans)");
+    }
+
     eprintln!(
         "[Config] llm={} | model={} | text_detection_model={} | threshold={} dilation={} pad={}x{}",
         cfg.llm_api_endpoint,
@@ -896,8 +902,12 @@ fn main() -> glib::ExitCode {
 
                 if s.config.overlay_enabled {
                     let text = format_for_overlay(&results, &s.config.overlay_render_mode);
-                    eprintln!("[HUD] Overlay enabled – prepared text: {}", text);
-                    hud_ipc::send_text(&text, s.config.overlay_udp_port);
+                    let display_text = if s.config.hud_html {
+                        lenzu::furigana_html::bracketed_to_furigana_html(&text)
+                    } else {
+                        text
+                    };
+                    hud_ipc::send_text(&display_text, s.config.overlay_udp_port);
                 }
 
                 // Only update clipboard and history on final results (not preview)

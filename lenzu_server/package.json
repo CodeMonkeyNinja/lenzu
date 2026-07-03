@@ -1,6 +1,6 @@
 {
   "name": "lenzu-hud",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A transparent HUD-like overlay for Linux desktop displaying UDP text as closed-caption/subtitle",
   "main": "dist/main.js",
   "homepage": "https://github.com/CodeMonkeyNinja/lenzu",

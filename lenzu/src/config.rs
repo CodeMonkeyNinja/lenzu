@@ -1,8 +1,8 @@
 use isolang::Language;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::fs;
 use std::path::Path;
-use serde_json;
 
 /// One entry in the DBNet scale table.  Params are chosen based on the longest edge
 /// of the image being passed to the detector: smaller images need more dilation to
@@ -71,8 +71,7 @@ const TRANSLATE_PROMPT_PER_REGION: &str =
 //
 // Language-specific: users override this entire prompt via enrichment_prompt config
 // field if they need different fields (e.g. pinyin for Chinese, no furigana for EN→JP).
-const DEFAULT_ENRICHMENT_PROMPT: &str =
-    "You are a {src}-to-{dest} language expert.\n\
+const DEFAULT_ENRICHMENT_PROMPT: &str = "You are a {src}-to-{dest} language expert.\n\
     Given the following {src} text, return ONLY a JSON object with these fields:\n\
     - 'original': the exact input text, unchanged\n\
     - 'furigana': add hiragana reading after each kanji word in brackets.\n\
@@ -231,6 +230,13 @@ pub struct AppConfig {
     /// always logged as warnings for reliability analysis.
     #[serde(default = "default_mecab_overwrite")]
     pub mecab_overwrite: bool,
+    // ── HUD HTML mode ───────────────────────────────────────────────────────
+    /// When `true`, the HUD overlay receives HTML span markup for furigana
+    /// (renders readings in small type above kanji via CSS-grid ruby).
+    /// When `false`, plain bracketed furigana is sent (e.g. `食[た]べ物[もの]`).
+    /// Set `--plaintext` on the CLI to disable.
+    #[serde(default = "default_hud_html")]
+    pub hud_html: bool,
     // ── Local OCR truncation ────────────────────────────────────────────────
     /// Maximum characters kept from a low-confidence manga-ocr-rs result.
     /// When OCR confidence is below the gate (71%) and the text is longer than
@@ -295,11 +301,41 @@ fn default_detection_scale_table() -> Vec<DetectionScaleEntry> {
     //   original coordinates) grow with resolution.  Orientation-aware merging
     //   in jp_detect prevents vertical/horizontal cross-merging.
     vec![
-        DetectionScaleEntry { max_dimension:   800, dilation: 16, threshold: 0.20, pad_x: 32, pad_y: 32 },
-        DetectionScaleEntry { max_dimension:  1280, dilation: 10, threshold: 0.25, pad_x: 32, pad_y: 32 },
-        DetectionScaleEntry { max_dimension:  1920, dilation:  6, threshold: 0.35, pad_x: 32, pad_y: 32 },
-        DetectionScaleEntry { max_dimension:  2560, dilation:  3, threshold: 0.45, pad_x: 40, pad_y: 40 },
-        DetectionScaleEntry { max_dimension: u32::MAX, dilation: 0, threshold: 0.50, pad_x: 48, pad_y: 48 },
+        DetectionScaleEntry {
+            max_dimension: 800,
+            dilation: 16,
+            threshold: 0.20,
+            pad_x: 32,
+            pad_y: 32,
+        },
+        DetectionScaleEntry {
+            max_dimension: 1280,
+            dilation: 10,
+            threshold: 0.25,
+            pad_x: 32,
+            pad_y: 32,
+        },
+        DetectionScaleEntry {
+            max_dimension: 1920,
+            dilation: 6,
+            threshold: 0.35,
+            pad_x: 32,
+            pad_y: 32,
+        },
+        DetectionScaleEntry {
+            max_dimension: 2560,
+            dilation: 3,
+            threshold: 0.45,
+            pad_x: 40,
+            pad_y: 40,
+        },
+        DetectionScaleEntry {
+            max_dimension: u32::MAX,
+            dilation: 0,
+            threshold: 0.50,
+            pad_x: 48,
+            pad_y: 48,
+        },
     ]
 }
 fn default_text_detection_dilation() -> u8 {
@@ -330,6 +366,9 @@ fn default_enrichment_timeout_secs() -> u64 {
     30 // cold start + model swap (ollama unloads primary to load enrichment model)
 }
 fn default_mecab_overwrite() -> bool {
+    true
+}
+fn default_hud_html() -> bool {
     true
 }
 fn default_low_conf_max_chars() -> usize {
@@ -395,6 +434,7 @@ impl Default for AppConfig {
             enrichment_prompt: None,
             furigana_only: false,
             mecab_overwrite: true,
+            hud_html: true,
             low_conf_max_chars: default_low_conf_max_chars(),
             token_warning_threshold: default_token_warning_threshold(),
             token_critical_threshold: default_token_critical_threshold(),
@@ -443,7 +483,9 @@ impl AppConfig {
     /// for furigana/romaji/translation after local OCR succeeds.
     /// Uses `enrichment_prompt` override if set, otherwise the built-in default.
     pub fn resolved_enrichment_prompt(&self) -> String {
-        let template = self.enrichment_prompt.as_deref()
+        let template = self
+            .enrichment_prompt
+            .as_deref()
             .unwrap_or(DEFAULT_ENRICHMENT_PROMPT);
         template
             .replace("{src}", self.translate_src.to_name())
@@ -488,16 +530,34 @@ mod tests {
             "overlay_render_mode": "furigana"
         }"##;
         let cfg: AppConfig = serde_json::from_str(json).expect("old config must deserialize");
-        assert_eq!(cfg.fallback_llm_api_endpoint, "https://openrouter.ai/api/v1/chat/completions");
+        assert_eq!(
+            cfg.fallback_llm_api_endpoint,
+            "https://openrouter.ai/api/v1/chat/completions"
+        );
         assert_eq!(cfg.fallback_llm_model, "@preset/free-dev");
-        assert_eq!(cfg.extra_fallback_models, vec!["google/gemma-4-31b-it:free".to_string()]);
+        assert_eq!(
+            cfg.extra_fallback_models,
+            vec!["google/gemma-4-31b-it:free".to_string()]
+        );
         assert_eq!(cfg.fallback_max_dimension, 800);
-        assert_eq!(cfg.primary_max_dimension, 0, "old configs without primary_max_dimension must default to 0 (no limit)");
-        assert!(!cfg.detection_scale_table.is_empty(), "old configs must get a non-empty default scale table");
+        assert_eq!(
+            cfg.primary_max_dimension, 0,
+            "old configs without primary_max_dimension must default to 0 (no limit)"
+        );
+        assert!(
+            !cfg.detection_scale_table.is_empty(),
+            "old configs must get a non-empty default scale table"
+        );
         let first = &cfg.detection_scale_table[0];
         let last = cfg.detection_scale_table.last().unwrap();
-        assert!(last.threshold > first.threshold, "scale table: threshold must increase with image size");
-        assert!(last.dilation < first.dilation || last.dilation == 0, "scale table: dilation must decrease with image size");
+        assert!(
+            last.threshold > first.threshold,
+            "scale table: threshold must increase with image size"
+        );
+        assert!(
+            last.dilation < first.dilation || last.dilation == 0,
+            "scale table: dilation must decrease with image size"
+        );
     }
 
     #[test]
@@ -531,10 +591,22 @@ mod tests {
     fn test_prompt_resolves_src_dest() {
         let cfg = AppConfig::default();
         let prompt = cfg.resolved_prompt();
-        assert!(!prompt.contains("{src}"), "{{src}} placeholder must be resolved");
-        assert!(!prompt.contains("{dest}"), "{{dest}} placeholder must be resolved");
-        assert!(prompt.contains("Japanese"), "default src language should appear");
-        assert!(prompt.contains("English"), "default dest language should appear");
+        assert!(
+            !prompt.contains("{src}"),
+            "{{src}} placeholder must be resolved"
+        );
+        assert!(
+            !prompt.contains("{dest}"),
+            "{{dest}} placeholder must be resolved"
+        );
+        assert!(
+            prompt.contains("Japanese"),
+            "default src language should appear"
+        );
+        assert!(
+            prompt.contains("English"),
+            "default dest language should appear"
+        );
     }
 
     #[test]
@@ -543,31 +615,66 @@ mod tests {
         let prompt = cfg.resolved_enrichment_prompt();
         assert!(!prompt.contains("{src}"), "{{src}} must be resolved");
         assert!(!prompt.contains("{dest}"), "{{dest}} must be resolved");
-        assert!(prompt.contains("Japanese"), "default src language should appear");
-        assert!(prompt.contains("English"), "default dest language should appear");
+        assert!(
+            prompt.contains("Japanese"),
+            "default src language should appear"
+        );
+        assert!(
+            prompt.contains("English"),
+            "default dest language should appear"
+        );
         // Default enrichment prompt explicitly lists furigana/romaji as required fields
-        assert!(prompt.contains("furigana"), "default enrichment prompt must mention furigana");
-        assert!(prompt.contains("romaji"), "default enrichment prompt must mention romaji");
-        assert!(prompt.contains("'original'"), "default enrichment prompt must list original field");
-        assert!(prompt.contains("'english'"), "default enrichment prompt must list english field");
+        assert!(
+            prompt.contains("furigana"),
+            "default enrichment prompt must mention furigana"
+        );
+        assert!(
+            prompt.contains("romaji"),
+            "default enrichment prompt must mention romaji"
+        );
+        assert!(
+            prompt.contains("'original'"),
+            "default enrichment prompt must list original field"
+        );
+        assert!(
+            prompt.contains("'english'"),
+            "default enrichment prompt must list english field"
+        );
     }
 
     #[test]
     fn test_enrichment_prompt_override() {
         let mut cfg = AppConfig::default();
-        cfg.enrichment_prompt = Some("Translate {src} to {dest}. Return JSON with 'original' and 'pinyin'.".to_string());
+        cfg.enrichment_prompt = Some(
+            "Translate {src} to {dest}. Return JSON with 'original' and 'pinyin'.".to_string(),
+        );
         let prompt = cfg.resolved_enrichment_prompt();
-        assert!(prompt.contains("pinyin"), "custom enrichment prompt should be used");
-        assert!(prompt.contains("Japanese"), "{{src}} must still be resolved in custom prompt");
-        assert!(!prompt.contains("furigana"), "default furigana should not leak into custom prompt");
+        assert!(
+            prompt.contains("pinyin"),
+            "custom enrichment prompt should be used"
+        );
+        assert!(
+            prompt.contains("Japanese"),
+            "{{src}} must still be resolved in custom prompt"
+        );
+        assert!(
+            !prompt.contains("furigana"),
+            "default furigana should not leak into custom prompt"
+        );
     }
 
     #[test]
     fn test_enrichment_defaults() {
         let cfg = AppConfig::default();
-        assert!(cfg.enrichment_enabled, "enrichment should be enabled by default");
-        assert_eq!(cfg.enrichment_model.as_deref(), Some("qwen2.5:3b"),
-            "enrichment_model should default to a text-only model, not a vision model");
+        assert!(
+            cfg.enrichment_enabled,
+            "enrichment should be enabled by default"
+        );
+        assert_eq!(
+            cfg.enrichment_model.as_deref(),
+            Some("qwen2.5:3b"),
+            "enrichment_model should default to a text-only model, not a vision model"
+        );
         assert_eq!(cfg.enrichment_timeout_secs, 30);
     }
 
@@ -590,9 +697,15 @@ mod tests {
             "overlay_render_mode": "furigana"
         }"##;
         let cfg: AppConfig = serde_json::from_str(json).expect("old config must deserialize");
-        assert!(cfg.enrichment_enabled, "enrichment_enabled must default to true for old configs");
-        assert_eq!(cfg.enrichment_model.as_deref(), Some("qwen2.5:3b"),
-            "old configs must get the default text-only enrichment model");
+        assert!(
+            cfg.enrichment_enabled,
+            "enrichment_enabled must default to true for old configs"
+        );
+        assert_eq!(
+            cfg.enrichment_model.as_deref(),
+            Some("qwen2.5:3b"),
+            "old configs must get the default text-only enrichment model"
+        );
         assert_eq!(cfg.enrichment_timeout_secs, 30);
     }
 }
