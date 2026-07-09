@@ -47,9 +47,9 @@ onnx = ["jp_detect/onnx"]
 
 [dependencies]
 anyhow = "1.0"
-jp_detect = { path = "../../jp_detect" }
-manga-ocr-rs = { path = "../../manga-ocr-rs" }
-mecab-furigana-rs = { path = "../../mecab_furigana_rs" }
+jp_detect = "1"
+manga-ocr-rs = "1"
+mecab-furigana-rs = "1"
 gtk4 = { version = "0.11", features = ["v4_14"] }
 gdk4-x11 = "0.11"
 async-channel = "2"
