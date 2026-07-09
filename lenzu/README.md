@@ -61,6 +61,9 @@ immediately — no LLM, no Ollama, no network. `mecab-furigana-rs` then annotate
 furigana brackets (`最初[さいしょ]`) and romaji in a second instant pass (~5 ms), plus
 word segmentation and per-morpheme data. Models loaded once at startup, shared via `Arc`.
 
+Lenzu dogfoods these three crates in production — the same dependency versions pinned in
+`Cargo.toml` are what ship in every AppImage and .deb release.
+
 **Why MeCab, not kakasi?** MeCab performs context-aware morphological analysis — it understands
 word boundaries from neighboring characters, so it correctly segments compound words and
 conjugated verbs. kakasi is a simple dictionary lookup that cannot disambiguate readings based

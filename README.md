@@ -19,6 +19,14 @@ The key difference from browser extensions like Yomitan/Rikaichan: this operates
 
 ## Installation
 
+**Quick install (AppImage + system deps)**
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/CodeMonkeyNinja/lenzu/trunk/scripts/install-linux.sh | bash
+```
+
+**Manual steps**
+
 **1. Install MeCab + dictionary**
 
 ```bash
@@ -128,7 +136,7 @@ cards, this means most clean text regions are handled in under 2 seconds without
 
 ## Related Crates
 
-These companion crates were developed as part of this project and are available on crates.io:
+These companion crates were developed as part of this project and are available on crates.io. Lenzu dogfoods all three in production — they power the local OCR pipeline that ships inside every AppImage:
 
 - [`jp_detect`](https://crates.io/crates/jp_detect) — real-time scene text detection using DBNet (ONNX). Locates text bounding boxes in manga panels and screenshots.
 - [`manga-ocr-rs`](https://crates.io/crates/manga-ocr-rs) — Japanese manga OCR via ViT encoder + BERT decoder (ONNX). Converts image crops to Japanese text.
