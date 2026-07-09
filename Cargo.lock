@@ -1739,9 +1739,7 @@ dependencies = [
 
 [[package]]
 name = "jp_detect"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aae7b27380c8503603cc2b88df99dcd9bad3fe4693c73d9ce927185942a4dc88"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "image",
@@ -1781,7 +1779,7 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
 name = "lenzu"
-version = "0.4.1"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -1884,9 +1882,7 @@ checksum = "e20f57f9918e5bd7bc58c22cdd70a6afc7375d4dd9683af5f2b34bd3d2bba619"
 
 [[package]]
 name = "manga-ocr-rs"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9d2753871a05303d1897c6038a873635dfe3d5e8ca85c8a2ec0acb866caf2a3"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "image",
@@ -1921,9 +1917,7 @@ dependencies = [
 
 [[package]]
 name = "mecab-furigana-rs"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36d9b9663daf709bf136699a6bf6d90841c92fe09d4715a9cbc2bfdeba57c46b"
+version = "1.0.0"
 
 [[package]]
 name = "memchr"

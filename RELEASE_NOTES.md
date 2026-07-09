@@ -1,5 +1,15 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v1.0.0
+
+- **All three sibling crates bumped to 1.0.0** — `jp_detect`, `manga-ocr-rs`,
+  and `mecab-furigana-rs` have reached stable API status. No further breaking
+  changes are planned for these crates. See each crate's `CHANGELOG.md` for
+  the full history.
+- **Lenzu itself bumped to 1.0.0** — reflecting production maturity of the
+  full pipeline: X11 capture → DBNet text detection → manga-ocr recognition →
+  MeCab furigana annotation → Electron HUD overlay.
+
 ### What's new in v0.4.1
 
 - **Bugfix** — AppImage HUD no longer crashes with `ENOENT: no such file or directory, open '.../proto/lenzu_hud.proto'`. The proto file is now bundled into the Electron asar during build. (#62)
