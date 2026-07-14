@@ -74,4 +74,4 @@ CLAUDE.md
 .claude/
 .gemini/
 prototypes/paddleocr-vl-manga/model/
-pnpm-workspace.yaml
+# pnpm-workspace.yaml is now tracked — contains override config for vuln fixes
