@@ -179,6 +179,27 @@ The text display area beneath the lens window is too small and clips content whe
 
 ## 💡 Future Ideas
 
+### IDEA-TTS — Text-to-Speech (Issue #10)
+
+Read the recognized Japanese text (and optionally the translation) aloud after OCR.
+Open feature request: https://github.com/CodeMonkeyNinja/lenzu/issues/10
+
+**Design decision (2026-09-14): mechanism** — the input to TTS is **raw text, not
+phonetics**. Neural TTS models (Fish Audio Nanami, VITS, StyleTTS2) perform their own
+internal text-to-phoneme conversion (reading lookup baked into the trained weights),
+so no MeCab / kanji→hiragana preprocessing is needed for synthesis. Feed
+`TranslationResult.original` directly. MeCab stays only for HUD furigana/romaji
+annotation (`furigana.rs`) — a display concern, unrelated to synthesis.
+
+**Candidate engines** — (a) local ONNX VITS/StyleTTS2 via the existing `ort` runtime
+(on-device, no new runtime dep), or (b) cloud API like Fish Audio (zero local compute,
+network + cost tradeoff). Opt-in `tts_enabled` in `lenzu_config.json` (default
+`false`); playback via `rodio` in a background thread.
+
+Design spec: wiki `technical-design.md` §15.
+
+---
+
 ### IDEA-2 — Local Ollama payload optimisation
 
 Four targeted reductions to avoid sending oversized images to local Ollama.
