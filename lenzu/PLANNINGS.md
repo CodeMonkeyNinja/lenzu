@@ -194,7 +194,16 @@ annotation (`furigana.rs`) — a display concern, unrelated to synthesis.
 **Candidate engines** — (a) local ONNX VITS/StyleTTS2 via the existing `ort` runtime
 (on-device, no new runtime dep), or (b) cloud API like Fish Audio (zero local compute,
 network + cost tradeoff). Opt-in `tts_enabled` in `lenzu_config.json` (default
-`false`); playback via `rodio` in a background thread.
+`false`).
+
+**Playback routing decision (2026-09-19): VLC telnet bridge.** Dev machine's internal
+speaker is dead; sound target is a Windows laptop over LAN. Windows exposes no
+audiosrv-style protocol to Linux (WASAPI/session RPC is local-only), so Pulse/pipewire
+network sinks are out. Decision: Linux synthesizes the WAV, serves it over HTTP, and
+pushes `enqueue+play` to VLC's telnet interface on the laptop (start once with
+`vlc --intf telnet --extraintf telnet --telnet-password foo`). VLC telnet is on-demand
+— idle until a command arrives — unlike a continuous HTTP/UDP stream. Audio genuinely
+crosses the LAN; nothing new installed on Windows.
 
 Design spec: wiki `technical-design.md` §15.
 
