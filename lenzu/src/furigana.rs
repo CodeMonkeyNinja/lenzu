@@ -46,7 +46,7 @@ pub fn annotate(results: &mut [TranslationResult], furigana_only: bool) -> bool 
             if !furigana_only && !fr.romaji.is_empty() {
                 result.romaji = Some(fr.romaji);
             }
-            any || true
+            true
         } else {
             any
         }
@@ -99,7 +99,7 @@ pub fn compare_and_maybe_overwrite(results: &mut [TranslationResult], overwrite:
                     result.romaji = Some(fr.romaji);
                 }
             }
-            any || true
+            true
         } else {
             eprintln!(
                 "[mecab-check] {:.1}ms MeCab returned nothing for «{}»",
