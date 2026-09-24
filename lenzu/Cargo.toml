@@ -57,7 +57,7 @@ gdk-pixbuf = "0.22"
 cairo-rs = "0.22"
 pango = "0.22"
 pangocairo = "0.22"
-x11rb = { version = "0.13", features = ["all-extensions"] }
+x11rb = { version = "0.14", features = ["all-extensions"] }
 reqwest = { version = "0.13", features = ["blocking", "json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
