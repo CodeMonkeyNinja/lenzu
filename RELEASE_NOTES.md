@@ -1,5 +1,16 @@
 ## Lenzu — transparent OCR lens overlay for Linux
 
+### What's new in v1.1.0
+
+- **Dependency modernization** — the Rust stack moved to current crates.io
+  releases: `mecab-furigana-rs` 1.2.0, tonic/prost 0.14 (via the new
+  `tonic-prost` / `tonic-prost-build` crate split), `x11rb` 0.14, `gtk4` /
+  `gdk4-x11` 0.11.5, `reqwest` 0.13.5.
+- **Clippy fix** — the furigana annotation fold no longer trips
+  `overly_complex_bool_expr`; runtime behavior unchanged.
+- **No user-facing changes.** This release is purely internal — if nothing
+  looks different to you, that's exactly the point.
+
 ### What's new in v1.0.0
 
 - **All three sibling crates bumped to 1.0.0** — `jp_detect`, `manga-ocr-rs`,
