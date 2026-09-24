@@ -45,7 +45,7 @@ fn main() {
             std::env::set_var("PROTOC", path);
         }
     }
-    tonic_build::compile_protos("../proto/lenzu_hud.proto")
+    tonic_prost_build::compile_protos("../proto/lenzu_hud.proto")
         .expect("failed to compile lenzu_hud.proto");
 
     // ── Server build ───────────────────────────────────────────────────────
