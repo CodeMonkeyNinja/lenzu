@@ -73,5 +73,6 @@ gha-creds-*.json
 CLAUDE.md
 .claude/
 .gemini/
+.opencode/
 prototypes/paddleocr-vl-manga/model/
 # pnpm-workspace.yaml is now tracked — contains override config for vuln fixes
