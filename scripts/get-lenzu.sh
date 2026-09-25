@@ -44,17 +44,32 @@ echo "[get-lenzu] Release: ${TAG}"
 # Ensure install directories exist
 mkdir -p "$INSTALL_DIR" "$BIN_DIR"
 
+# Download to a .part file and rename only after curl succeeds, so an
+# interrupted transfer never leaves a truncated file that a later run mistakes
+# for a complete download. curl -C - resumes an existing .part rather than
+# restarting from byte 0. (ref #64)
+fetch() {
+    local url="$1" dest="$2"
+    local part="${dest}.part"
+    if [[ -f "$dest" ]]; then
+        echo "[get-lenzu] $(basename "$dest") already downloaded"
+        return 0
+    fi
+    echo "[get-lenzu] Downloading $(basename "$dest")..."
+    if ! curl -sSfL -C - "$url" -o "$part"; then
+        rm -f "$part"
+        echo "[get-lenzu] ERROR: download failed: $url" >&2
+        return 1
+    fi
+    mv -f "$part" "$dest"
+}
+
 # Download the AppImage
 APPIMAGE="lenzu-${VERSION}-${ARCH}.appimage"
 APPIMAGE_URL="https://github.com/${REPO}/releases/download/${TAG}/${APPIMAGE}"
 
-if [[ -f "${INSTALL_DIR}/${APPIMAGE}" ]]; then
-  echo "[get-lenzu] ${APPIMAGE} already downloaded"
-else
-  echo "[get-lenzu] Downloading ${APPIMAGE}..."
-  curl -sSfL "$APPIMAGE_URL" -o "${INSTALL_DIR}/${APPIMAGE}"
-  chmod +x "${INSTALL_DIR}/${APPIMAGE}"
-fi
+fetch "$APPIMAGE_URL" "${INSTALL_DIR}/${APPIMAGE}"
+chmod +x "${INSTALL_DIR}/${APPIMAGE}"
 
 # Symlink to ~/.local/bin
 SYMLINK="${BIN_DIR}/lenzu"
@@ -70,13 +85,8 @@ if [[ "$BUNDLE" == "true" ]]; then
   BUNDLE_FILE="lenzu-bundle-${VERSION}.tar"
   BUNDLE_URL="https://github.com/${REPO}/releases/download/${TAG}/${BUNDLE_FILE}"
 
-  if [[ -f "${INSTALL_DIR}/${BUNDLE_FILE}" ]]; then
-    echo "[get-lenzu] ${BUNDLE_FILE} already downloaded"
-  else
-    echo "[get-lenzu] Downloading ${BUNDLE_FILE} (large)..."
-    curl -sSfL "$BUNDLE_URL" -o "${INSTALL_DIR}/${BUNDLE_FILE}"
-    echo "[get-lenzu] Extract with: tar -xf ${INSTALL_DIR}/${BUNDLE_FILE} -C ${INSTALL_DIR}"
-  fi
+  fetch "$BUNDLE_URL" "${INSTALL_DIR}/${BUNDLE_FILE}"
+  echo "[get-lenzu] Extract with: tar -xf ${INSTALL_DIR}/${BUNDLE_FILE} -C ${INSTALL_DIR}"
 fi
 
 # Remind about PATH
